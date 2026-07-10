@@ -96,8 +96,8 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('geist-theme');
-                  if (!theme) {
+                  var theme = localStorage.getItem('theme');
+                  if (!theme || theme === 'system') {
                     theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
                   }
                   if (theme === 'dark' || theme === 'light') {
