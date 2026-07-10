@@ -1,13 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Source_Serif_4, JetBrains_Mono } from 'next/font/google';
-import { ThemeProvider } from 'next-themes';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ScrollToTop from '@/components/ScrollToTop';
 import './globals.css';
 
-// Body / UI — Inter for clean Latin text. CJK falls back to system fonts
-// (PingFang SC on macOS, Microsoft YaHei on Windows, Noto Sans CJK on Linux).
 const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
@@ -15,8 +12,6 @@ const inter = Inter({
   display: 'swap',
 });
 
-// Display — Source Serif 4 for editorial headlines (Latin). CJK falls back
-// to system serif (Songti SC on macOS, SimSun on Windows).
 const sourceSerif = Source_Serif_4({
   subsets: ['latin'],
   weight: ['600', '700'],
@@ -32,7 +27,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://ai-abuqlcjiz-readylinoffice-2002s-projects.vercel.app'),
+  metadataBase: new URL(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aiweb-roan.vercel.app'),
   title: 'AI 新闻中心 — 最新 AI 资讯与动态',
   description: '精选来自最佳来源的人工智能新闻。每日更新 AI、机器学习和技术领域的最新资讯。',
   icons: {
@@ -72,16 +67,31 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="font-sans" suppressHydrationWarning>
-        <ThemeProvider attribute="class">
-          <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] btn-primary">
-            跳到正文
-          </a>
-          <Header />
-          <main id="main" className="min-h-screen">{children}</main>
-          <ScrollToTop />
-          <Footer />
-        </ThemeProvider>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var t = localStorage.getItem('theme') || 'system';
+                  if (t === 'system') {
+                    t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                  }
+                  if (t === 'dark') document.documentElement.classList.add('dark');
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="font-sans">
+        <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] btn-primary">
+          跳到正文
+        </a>
+        <Header />
+        <main id="main" className="min-h-screen">{children}</main>
+        <ScrollToTop />
+        <Footer />
       </body>
     </html>
   );

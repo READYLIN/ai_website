@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 const NAV_LINKS = [
@@ -12,8 +11,29 @@ const NAV_LINKS = [
   { href: '/bookmarks', label: '收藏夹', icon: 'M5 2h14a1 1 0 011 1v19.143a.5.5 0 01-.766.424L12 18.03l-7.234 4.536A.5.5 0 014 22.143V3a1 1 0 011-1z' },
 ];
 
+function getTheme(): 'light' | 'dark' {
+  try {
+    const t = localStorage.getItem('theme') || 'system';
+    if (t === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return t === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function applyTheme(t: 'light' | 'dark') {
+  if (t === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  try { localStorage.setItem('theme', t); } catch {}
+}
+
 export default function Header() {
-  const { theme, setTheme } = useTheme();
+  const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -21,7 +41,11 @@ export default function Header() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const router = useRouter();
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const t = getTheme();
+    setTheme(t);
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -29,6 +53,12 @@ export default function Header() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  const toggleTheme = useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    applyTheme(next);
+  }, [theme]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +100,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {/* Mobile nav toggle */}
           <button
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
             className="md:hidden p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-light-border/50 dark:hover:bg-dark-border/50 transition-colors"
@@ -101,10 +130,7 @@ export default function Header() {
               />
               <button
                 type="button"
-                onClick={() => {
-                  setSearchOpen(false);
-                  setSearchQuery('');
-                }}
+                onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
                 className="ml-2 p-1.5 rounded-lg text-light-muted dark:text-dark-muted hover:bg-light-border/50 dark:hover:bg-dark-border/50 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +152,7 @@ export default function Header() {
 
           {mounted && (
             <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              onClick={toggleTheme}
               className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-light-border/50 dark:hover:bg-dark-border/50 transition-colors"
               aria-label="切换深色模式"
             >
@@ -144,7 +170,6 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile navigation */}
       {mobileNavOpen && (
         <nav className="md:hidden border-t border-light-border/60 dark:border-dark-border/60 bg-light-bg/95 dark:bg-dark-bg/95 backdrop-blur-xl animate-slide-up" style={{ animationDuration: '0.25s' }}>
           <div className="container-site flex flex-col py-2 divide-y divide-light-border/50 dark:divide-dark-border/50 text-sm font-medium">
