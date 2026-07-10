@@ -87,31 +87,8 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${notoSansSC.variable} ${sourceSerif.variable} ${notoSerifSC.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        {/* Inline theme script to prevent hydration mismatch:
-            Reads the saved theme from localStorage before React hydrates,
-            so the <html> class matches what the client will render. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('theme');
-                  if (!theme || theme === 'system') {
-                    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                  }
-                  if (theme === 'dark' || theme === 'light') {
-                    document.documentElement.classList.remove('light', 'dark');
-                    document.documentElement.classList.add(theme);
-                  }
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
-      </head>
-      <body className="font-sans">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <body className="font-sans" suppressHydrationWarning>
+        <ThemeProvider attribute="class">
           <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] btn-primary">
             跳到正文
           </a>
