@@ -34,11 +34,12 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Each role pairs a Latin face with a CJK face of matching character.
-        // The browser silently falls through to the CJK family for glyphs the
-        // Latin face doesn't have — no JS needed, just font-stack order.
-        sans: ['var(--font-sans)', 'var(--font-sans-zh)', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', 'var(--font-display-zh)', 'system-ui', 'serif'],
+        // Latin faces with system CJK fallback. Inter and Source Serif 4
+        // handle Latin glyphs; Chinese text silently falls through to the
+        // platform’s native CJK family (macOS: PingFang SC / Songti SC,
+        // Windows: Microsoft YaHei / SimSun, Linux: Noto Sans CJK).
+        sans: ['var(--font-sans)', '"PingFang SC"', '"Microsoft YaHei"', '"Noto Sans CJK SC"', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', '"Songti SC"', '"SimSun"', '"Noto Serif CJK SC"', 'system-ui', 'serif'],
         mono: ['var(--font-mono)', 'monospace'],
       },
       fontSize: {

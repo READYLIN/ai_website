@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Source_Serif_4, Noto_Sans_SC, Noto_Serif_SC, JetBrains_Mono } from 'next/font/google';
+import { Inter, Source_Serif_4, JetBrains_Mono } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ScrollToTop from '@/components/ScrollToTop';
 import './globals.css';
 
-// Body / UI — a clean grotesque for Latin, paired with a matching CJK sans
-// so Chinese UI text and Latin UI text sit at the same visual weight.
+// Body / UI — Inter for clean Latin text. CJK falls back to system fonts
+// (PingFang SC on macOS, Microsoft YaHei on Windows, Noto Sans CJK on Linux).
 const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
@@ -15,27 +15,12 @@ const inter = Inter({
   display: 'swap',
 });
 
-const notoSansSC = Noto_Sans_SC({
-  subsets: ['latin'],
-  weight: ['400', '500', '700'],
-  variable: '--font-sans-zh',
-  display: 'swap',
-});
-
-// Display — an editorial serif. This is a news product: high-contrast serif
-// headlines are a functional choice rooted in that, not a decorative one.
-// Weights are limited to 600/700 to keep the CJK subset payload in check.
+// Display — Source Serif 4 for editorial headlines (Latin). CJK falls back
+// to system serif (Songti SC on macOS, SimSun on Windows).
 const sourceSerif = Source_Serif_4({
   subsets: ['latin'],
   weight: ['600', '700'],
   variable: '--font-display',
-  display: 'swap',
-});
-
-const notoSerifSC = Noto_Serif_SC({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  variable: '--font-display-zh',
   display: 'swap',
 });
 
@@ -85,7 +70,7 @@ export default function RootLayout({
     <html
       lang="zh-CN"
       suppressHydrationWarning
-      className={`${inter.variable} ${notoSansSC.variable} ${sourceSerif.variable} ${notoSerifSC.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans" suppressHydrationWarning>
         <ThemeProvider attribute="class">
