@@ -47,7 +47,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://aiweb-readylinoffice-2002s-projects.vercel.app'),
+  metadataBase: new URL(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://ai-abuqlcjiz-readylinoffice-2002s-projects.vercel.app'),
   title: 'AI 新闻中心 — 最新 AI 资讯与动态',
   description: '精选来自最佳来源的人工智能新闻。每日更新 AI、机器学习和技术领域的最新资讯。',
   icons: {
@@ -87,6 +87,29 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${notoSansSC.variable} ${sourceSerif.variable} ${notoSerifSC.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        {/* Inline theme script to prevent hydration mismatch:
+            Reads the saved theme from localStorage before React hydrates,
+            so the <html> class matches what the client will render. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('geist-theme');
+                  if (!theme) {
+                    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                  }
+                  if (theme === 'dark' || theme === 'light') {
+                    document.documentElement.classList.remove('light', 'dark');
+                    document.documentElement.classList.add(theme);
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] btn-primary">
