@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const NAV_LINKS = [
@@ -12,29 +12,28 @@ const NAV_LINKS = [
 ];
 
 function getTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light';
   try {
-    const t = localStorage.getItem('theme') || 'system';
-    if (t === 'system') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return t === 'dark' ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
+    const cls = document.documentElement.classList.contains('dark');
+    return cls ? 'dark' : 'light';
+  } catch { return 'light'; }
 }
 
-function applyTheme(t: 'light' | 'dark') {
-  if (t === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
+function toggleThemeImpl() {
+  const isDark = document.documentElement.classList.contains('dark');
+  if (isDark) {
     document.documentElement.classList.remove('dark');
+  } else {
+    document.documentElement.classList.add('dark');
   }
-  try { localStorage.setItem('theme', t); } catch {}
+  try {
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+  } catch {}
 }
 
 export default function Header() {
-  const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,8 +41,7 @@ export default function Header() {
   const router = useRouter();
 
   useEffect(() => {
-    const t = getTheme();
-    setTheme(t);
+    setTheme(getTheme());
     setMounted(true);
   }, []);
 
@@ -54,11 +52,10 @@ export default function Header() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    applyTheme(next);
-  }, [theme]);
+  const handleThemeToggle = () => {
+    toggleThemeImpl();
+    setTheme(getTheme());
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +149,7 @@ export default function Header() {
 
           {mounted && (
             <button
-              onClick={toggleTheme}
+              onClick={handleThemeToggle}
               className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-light-border/50 dark:hover:bg-dark-border/50 transition-colors"
               aria-label="切换深色模式"
             >

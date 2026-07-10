@@ -34,11 +34,16 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.medium.com' },
       { protocol: 'https', hostname: '*.substack.com' },
       { protocol: 'https', hostname: '*.ghost.org' },
-      // Allow all https images (Next.js 14+ supports wildcard)
+      // Feishu/ Lark
+      { protocol: 'https', hostname: '*.feishu.cn' },
+      { protocol: 'https', hostname: 'geek.feishu.cn' },
+      { protocol: 'https', hostname: '*.feishu.net' },
+      { protocol: 'https', hostname: '*.larksuite.com' },
+      // Wildcard for any other domains
       { protocol: 'https', hostname: '**' },
     ],
-    // Allow unoptimized images for external URLs that may not be in remotePatterns
-    unoptimized: false,
+    // Allow unoptimized images for external URLs (many CDNs block Next.js image optimization)
+    unoptimized: true,
   },
   async rewrites() {
     return [

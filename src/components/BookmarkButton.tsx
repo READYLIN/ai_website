@@ -1,10 +1,13 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useBookmarks } from '@/hooks/useBookmarks';
 
 export default function BookmarkButton({ articleId }: { articleId: string }) {
   const { isSaved, toggle } = useBookmarks();
-  const saved = isSaved(articleId);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const saved = mounted && isSaved(articleId);
 
   return (
     <button
