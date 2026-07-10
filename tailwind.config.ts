@@ -38,9 +38,9 @@ const config: Config = {
         // handle Latin glyphs; Chinese text silently falls through to the
         // platform’s native CJK family (macOS: PingFang SC / Songti SC,
         // Windows: Microsoft YaHei / SimSun, Linux: Noto Sans CJK).
-        sans: ['var(--font-sans)', '"PingFang SC"', '"Microsoft YaHei"', '"Noto Sans CJK SC"', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', '"Songti SC"', '"SimSun"', '"Noto Serif CJK SC"', 'system-ui', 'serif'],
-        mono: ['var(--font-mono)', 'monospace'],
+        sans: ['"Inter"', 'system-ui', '-apple-system', '"Segoe UI"', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+        display: ['"Source Serif 4"', '"Georgia"', '"Songti SC"', '"SimSun"', 'serif'],
+        mono: ['"JetBrains Mono"', '"Menlo"', '"Consolas"', '"Courier New"', 'monospace'],
       },
       fontSize: {
         'display-xl': ['clamp(2.5rem, 5vw, 4rem)', { lineHeight: '1.08', letterSpacing: '-0.01em' }],
