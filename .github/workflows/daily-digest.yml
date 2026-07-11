@@ -12,6 +12,6 @@ jobs:
     steps:
       - name: Call digest API
         run: |
-          curl -s -X POST "${{ secrets.VERCEL_DEPLOY_URL }}/api/cron/digest" \
+          curl -s -X POST "https://aiweb-roan.vercel.app/api/cron/digest" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             --max-time 120
