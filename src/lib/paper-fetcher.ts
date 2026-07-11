@@ -1,6 +1,7 @@
 import { Paper } from './types';
 import { arxivCategories } from './paper-sources';
 import { withTtlCache } from './feed-utils';
+import { getStoredPapers, savePapers } from './storage';
 
 // ─── arXiv API ───────────────────────────────────────────────
 
@@ -244,7 +245,47 @@ const fetchWithCache = withTtlCache<Paper[]>(async () => {
   );
 }, 5000);
 
+/**
+ * Main entry point: merge stored (historical) papers with live-fetched ones.
+ * Automatically saves new live papers to storage.
+ */
 export async function fetchAllPapers(): Promise<Paper[]> {
+  // 1. Read stored papers (June + July by default)
+  const storedPromise = getStoredPapers().catch(() => [] as Paper[]);
+
+  // 2. Live fetch (with 5s TTL cache)
+  const livePromise = fetchWithCache();
+
+  const [stored, live] = await Promise.all([storedPromise, livePromise]);
+
+  // 3. Merge: stored serve as base, live papers de-dupe by id and normalized title
+  const merged = [...stored];
+  const seenIds = new Set(stored.map((p) => p.id));
+  const seenTitles = new Set(stored.map((p) => p.title.toLowerCase().replace(/[^a-z0-9]/g, '')));
+
+  for (const paper of live) {
+    const normTitle = paper.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (seenIds.has(paper.id) || seenTitles.has(normTitle)) continue;
+    seenIds.add(paper.id);
+    seenTitles.add(normTitle);
+    merged.push(paper);
+  }
+
+  // 4. Sort merged by date descending
+  merged.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+  // 5. Auto-save new papers in the background (don't block the response)
+  if (live.length > 0) {
+    savePapers(live).catch((err) => console.error('[paper-fetcher] Background save failed:', err));
+  }
+
+  return merged;
+}
+
+/**
+ * Live-only paper fetch — bypasses storage entirely.
+ */
+export async function fetchLivePapers(): Promise<Paper[]> {
   return fetchWithCache();
 }
 

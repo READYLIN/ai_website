@@ -1,0 +1,24 @@
+name: Sync Storage
+
+on:
+  schedule:
+    # 每天北京时间 9:00 (UTC+8 → 1:00 UTC) 和 21:00 (UTC+8 → 13:00 UTC)
+    - cron: '0 1,13 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger storage sync
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://aiweb-roan.vercel.app/api/storage/sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Storage sync successful"
+          else
+            echo "❌ Storage sync failed with HTTP $RESPONSE"
+            exit 1
+          fi

@@ -27,6 +27,7 @@ async function handleDigest() {
   }
 
   try {
+    // Use fetchAllArticles() — historical articles will be filtered out by filterLast24Hours
     const allArticles = await fetchAllArticles();
 
     if (allArticles.length === 0) {
