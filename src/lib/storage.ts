@@ -84,11 +84,13 @@ export async function getStoredArticles(months?: string[]): Promise<Article[]> {
   for (const month of targetMonths) {
     const key = `articles:${month}`;
     try {
-      const hash = await redis.hgetall<Record<string, string>>(key);
+      const hash = await redis.hgetall<Record<string, unknown>>(key);
       if (hash) {
-        for (const json of Object.values(hash)) {
+        for (const value of Object.values(hash)) {
           try {
-            articles.push(JSON.parse(json) as Article);
+            // @upstash/redis auto-deserializes JSON, so values are already objects
+            const article = (typeof value === 'string' ? JSON.parse(value) : value) as Article;
+            articles.push(article);
           } catch {
             // skip malformed entries
           }
@@ -152,11 +154,13 @@ export async function getStoredPapers(months?: string[]): Promise<Paper[]> {
   for (const month of targetMonths) {
     const key = `papers:${month}`;
     try {
-      const hash = await redis.hgetall<Record<string, string>>(key);
+      const hash = await redis.hgetall<Record<string, unknown>>(key);
       if (hash) {
-        for (const json of Object.values(hash)) {
+        for (const value of Object.values(hash)) {
           try {
-            papers.push(JSON.parse(json) as Paper);
+            // @upstash/redis auto-deserializes JSON, so values are already objects
+            const paper = (typeof value === 'string' ? JSON.parse(value) : value) as Paper;
+            papers.push(paper);
           } catch {
             // skip malformed entries
           }
