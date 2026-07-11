@@ -13,7 +13,13 @@ export default function SanitizedHTML({ html, className }: SanitizedHTMLProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setClean(DOMPurify.sanitize(html, {
+    const normalized = html
+      .replace(/<head[\s\S]*?<\/head>/gi, '')
+      .replace(/<\/?(?:html|body)[^>]*>/gi, '')
+      .replace(/\[!--(?:begin|end):[^\]]*--\][^<\n]*/gi, '')
+      .trim();
+
+    setClean(DOMPurify.sanitize(normalized, {
       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'a', 'img', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre', 'code', 'figure', 'figcaption', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'span'],
       ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'width', 'height', 'loading', 'data-src', 'data-original', 'referrerpolicy', 'decoding'],
     }));
@@ -43,6 +49,11 @@ export default function SanitizedHTML({ html, className }: SanitizedHTMLProps) {
           img.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
         }
       }, { signal: ac.signal });
+    });
+    const links = containerRef.current.querySelectorAll('a');
+    links.forEach((link) => {
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
     });
     return () => ac.abort();
   }, [clean]);

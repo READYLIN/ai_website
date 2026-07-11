@@ -41,7 +41,7 @@ export default async function PaperDetailPage({
   }
 
   return (
-    <div className="container-site py-10 max-w-3xl">
+    <div className="container-site max-w-3xl py-8 sm:py-12">
       <Link
         href="/papers"
         className="inline-flex items-center gap-1.5 text-sm text-light-muted dark:text-dark-muted hover:text-accent dark:hover:text-accent-dark transition-colors mb-8 group"
@@ -54,7 +54,7 @@ export default async function PaperDetailPage({
 
       <article className="animate-fade-in">
         <div className="flex items-center gap-2.5 text-sm text-light-muted dark:text-dark-muted mb-5">
-          <span className="text-base">{paper.source === 'openalex' ? '🔬' : '📄'}</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/10 font-mono text-[9px] font-bold text-accent dark:bg-accent-dark/10 dark:text-accent-dark">{paper.source === 'openalex' ? 'OA' : 'AX'}</span>
           <span className="font-medium">{paper.source === 'openalex' ? 'OpenAlex' : 'arXiv'}</span>
           {paper.citationCount != null && paper.citationCount > 0 && (
             <>
@@ -85,7 +85,7 @@ export default async function PaperDetailPage({
         </h1>
 
         <div className="mb-6">
-          <h3 className="text-sm font-display font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-3">
+          <h3 className="section-label mb-3">
             作者
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export default async function PaperDetailPage({
             href={paper.pdfUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 font-medium rounded-lg border border-light-border dark:border-dark-border hover:border-accent dark:hover:border-accent-dark transition-colors"
+            className="btn-secondary gap-2"
           >
             下载 PDF
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

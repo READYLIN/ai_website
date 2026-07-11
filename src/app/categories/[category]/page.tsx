@@ -19,13 +19,14 @@ export default async function CategoryPage({
   );
 
   return (
-    <div className="container-site py-10">
-      <section className="mb-8">
-        <h1 className="font-display text-3xl font-bold tracking-tight mb-3">
+    <div className="container-site py-8 sm:py-12">
+      <section className="mb-8 border-b border-light-border/70 pb-8 dark:border-dark-border/70">
+        <div className="page-eyebrow"><span className="cursor-mark" aria-hidden="true" /><span className="section-label">Topic archive</span></div>
+        <h1 className="font-display text-display-md font-bold tracking-tight mb-3">
           {category}
         </h1>
-        <p className="text-light-muted dark:text-dark-muted">
-          {articles.length} 篇文章
+        <p className="font-mono text-xs text-light-muted dark:text-dark-muted">
+          共 {articles.length} 篇文章
         </p>
       </section>
 

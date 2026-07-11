@@ -2,10 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Typography uses deployment-safe system stacks configured in Tailwind. */
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text transition-colors duration-200;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    min-width: 320px;
+    background-image:
+      radial-gradient(circle at 8% -10%, rgba(181, 78, 46, 0.055), transparent 26rem),
+      radial-gradient(circle at 95% 30%, rgba(115, 108, 95, 0.035), transparent 30rem);
+    background-attachment: fixed;
   }
 
   ::selection {
@@ -19,6 +30,10 @@
   p, li {
     text-wrap: pretty;
   }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent/60 ring-offset-2 ring-offset-light-bg dark:ring-accent-dark/70 dark:ring-offset-dark-bg;
+  }
 }
 
 @layer components {
@@ -27,8 +42,8 @@
   }
 
   .card {
-    @apply bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-card p-5 transition-all duration-300 ease-out h-full;
-    @apply hover:shadow-card-hover hover:-translate-y-1 hover:border-accent/25 dark:hover:border-accent-dark/25;
+    @apply bg-light-surface/95 dark:bg-dark-surface/95 border border-light-border dark:border-dark-border rounded-card p-5 transition-all duration-300 ease-out h-full;
+    @apply hover:shadow-card-hover hover:-translate-y-0.5 hover:border-accent/25 dark:hover:border-accent-dark/25;
   }
 
   .badge {
@@ -40,8 +55,13 @@
 
   .btn-primary {
     @apply bg-accent text-white px-5 py-2.5 font-medium rounded-lg;
-    @apply hover:bg-accent-hover transition-all duration-200;
+    @apply hover:bg-accent-hover hover:-translate-y-0.5 transition-all duration-200;
     @apply active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-light-border dark:border-dark-border bg-light-surface/80 dark:bg-dark-surface/80 px-4 py-2.5 text-sm font-medium;
+    @apply hover:border-accent/40 dark:hover:border-accent-dark/40 hover:text-accent dark:hover:text-accent-dark transition-all duration-200 active:scale-[0.98];
   }
 
   .input-search {
@@ -51,6 +71,18 @@
 
   .section-label {
     @apply text-xs font-mono font-medium tracking-wider uppercase text-light-muted dark:text-dark-muted;
+  }
+
+  .page-eyebrow {
+    @apply mb-4 flex items-center gap-2;
+  }
+
+  .empty-state {
+    @apply rounded-card-lg border border-dashed border-light-border dark:border-dark-border bg-light-surface/50 dark:bg-dark-surface/50 px-6 py-16 text-center;
+  }
+
+  .skeleton-line {
+    @apply animate-pulse rounded bg-light-border/70 dark:bg-dark-border/70;
   }
 
   /* Signature motif: a blinking text-cursor, reserved exclusively for "this is

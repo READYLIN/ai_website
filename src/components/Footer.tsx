@@ -1,105 +1,36 @@
-'use client';
+import Link from 'next/link';
 
-import { useState } from 'react';
+const primaryLinks = [
+  { href: '/', label: '最新资讯' },
+  { href: '/papers', label: 'AI 论文' },
+  { href: '/monitor', label: '传媒监控' },
+  { href: '/bookmarks', label: '收藏夹' },
+];
 
 export default function Footer() {
-  const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !email.includes('@')) return;
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (res.ok) {
-        setSubmitted(true);
-        setEmail('');
-      } else {
-        const data = await res.json();
-        setError(data.error || '订阅失败');
-      }
-    } catch {
-      setError('网络错误');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <footer className="border-t border-light-border/60 dark:border-dark-border/60 mt-20">
-      <div className="container-site py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <footer className="mt-20 border-t border-light-border/70 dark:border-dark-border/70">
+      <div className="container-site py-10 sm:py-12">
+        <div className="grid gap-8 md:grid-cols-[1.2fr_1fr] md:items-end">
           <div>
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                <span className="text-white font-display font-bold text-sm">AI</span>
-              </div>
-              <h3 className="font-display font-bold text-lg">新闻中心</h3>
-            </div>
-            <p className="text-light-muted dark:text-dark-muted text-sm leading-relaxed">
-              精选来自最佳来源的 AI 新闻，每日更新。
+            <Link href="/" className="inline-flex items-center gap-2.5 rounded-sm" aria-label="AI 新闻中心首页">
+              <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent font-display text-sm font-bold text-white">AI</span>
+              <span className="font-display text-lg font-bold">新闻中心</span>
+            </Link>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-light-muted dark:text-dark-muted">
+              聚合公开信源中的 AI 新闻与研究，提供中文摘要，并始终保留原始出处。
             </p>
           </div>
-
-          <div>
-            <h4 className="section-label mb-4">来源</h4>
-            <ul className="space-y-2 text-sm">
-              <li><a href="https://techcrunch.com/category/artificial-intelligence/" target="_blank" rel="noopener noreferrer" className="hover:text-accent dark:hover:text-accent-dark transition-colors">TechCrunch</a></li>
-              <li><a href="https://www.theverge.com/ai-artificial-intelligence" target="_blank" rel="noopener noreferrer" className="hover:text-accent dark:hover:text-accent-dark transition-colors">The Verge</a></li>
-              <li><a href="https://www.technologyreview.com/topic/artificial-intelligence/" target="_blank" rel="noopener noreferrer" className="hover:text-accent dark:hover:text-accent-dark transition-colors">MIT Tech Review</a></li>
-              <li><a href="https://venturebeat.com/category/ai/" target="_blank" rel="noopener noreferrer" className="hover:text-accent dark:hover:text-accent-dark transition-colors">VentureBeat</a></li>
-              <li><a href="https://www.jiqizhixin.com/" target="_blank" rel="noopener noreferrer" className="hover:text-accent dark:hover:text-accent-dark transition-colors">机器之心</a></li>
-              <li><a href="https://www.qbitai.com/" target="_blank" rel="noopener noreferrer" className="hover:text-accent dark:hover:text-accent-dark transition-colors">量子位</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="section-label mb-4">通讯订阅</h4>
-            {submitted ? (
-              <div className="space-y-2">
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  感谢订阅！请查看您的邮箱。
-                </p>
-                <button
-                  onClick={() => setSubmitted(false)}
-                  className="text-xs text-accent dark:text-accent-dark hover:underline"
-                >
-                  再次订阅
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex gap-2">
-                <label htmlFor="footer-email" className="sr-only">邮箱地址</label>
-                <input
-                  id="footer-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="input-search flex-1"
-                  autoComplete="email"
-                  required
-                />
-                <button type="submit" disabled={loading} className="btn-primary whitespace-nowrap disabled:opacity-50">
-                  {loading ? '...' : '订阅'}
-                </button>
-              </form>
-            )}
-            {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-          </div>
+          <nav className="flex flex-wrap gap-x-5 gap-y-3 text-sm md:justify-end" aria-label="页脚导航">
+            {primaryLinks.map((link) => <Link key={link.href} href={link.href} className="hover:text-accent dark:hover:text-accent-dark transition-colors">{link.label}</Link>)}
+          </nav>
         </div>
-
-        <div className="mt-10 pt-6 border-t border-light-border/40 dark:border-dark-border/40 flex items-center justify-between text-xs text-light-muted dark:text-dark-muted">
-          <span>使用 Next.js 构建</span>
-          <span>RSS 订阅源版权归原作者所有</span>
+        <div className="mt-9 flex flex-col gap-3 border-t border-light-border/50 pt-5 text-xs text-light-muted dark:border-dark-border/50 dark:text-dark-muted sm:flex-row sm:items-center sm:justify-between">
+          <span>内容版权归原作者及来源机构所有</span>
+          <div className="flex gap-4">
+            <Link href="/privacy" className="hover:text-accent dark:hover:text-accent-dark">隐私说明</Link>
+            <Link href="/terms" className="hover:text-accent dark:hover:text-accent-dark">使用条款</Link>
+          </div>
         </div>
       </div>
     </footer>

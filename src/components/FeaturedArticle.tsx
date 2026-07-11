@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Article } from '@/lib/types';
+import { articleDisplayCopy } from '@/lib/display-text';
 import BookmarkButton from './BookmarkButton';
 
 function isFresh(dateStr: string): boolean {
@@ -24,6 +25,7 @@ function timeAgo(dateStr: string): string {
 export default function FeaturedArticle({ article, linkPrefix = '/articles/' }: { article: Article; linkPrefix?: string }) {
   const [imgError, setImgError] = useState(false);
   const fresh = isFresh(article.publishedAt);
+  const copy = articleDisplayCopy(article);
 
   return (
     <article className="group relative rounded-card-lg border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface overflow-hidden mb-10 animate-fade-in">
@@ -32,7 +34,7 @@ export default function FeaturedArticle({ article, linkPrefix = '/articles/' }: 
           <Link href={`${linkPrefix}${article.id}`} className="block relative aspect-[16/10] md:aspect-auto overflow-hidden bg-light-border dark:bg-dark-border order-1 md:order-2">
             <Image
               src={article.imageUrl}
-              alt={article.title}
+              alt={copy.title}
               fill
               className="object-cover grayscale-[35%] transition-all duration-500 ease-out group-hover:grayscale-0 group-hover:scale-[1.03]"
               onError={() => setImgError(true)}
@@ -50,17 +52,17 @@ export default function FeaturedArticle({ article, linkPrefix = '/articles/' }: 
             {fresh && <><span className="text-light-border dark:text-dark-border">·</span><span className="font-mono text-light-muted dark:text-dark-muted">刚刚更新</span></>}
           </div>
 
-          <Link href={`${linkPrefix}${article.id}`}>
+          <Link href={`${linkPrefix}${article.id}`} className="rounded-sm">
             <h2 className="font-display font-bold text-display-md leading-tight mb-3 group-hover:text-accent dark:group-hover:text-accent-dark transition-colors duration-200">
-              {article.titleZh || article.title}
+              {copy.title}
             </h2>
           </Link>
-          {article.titleZh && article.titleZh !== article.title && (
-            <p className="text-sm text-light-muted dark:text-dark-muted italic mb-3 line-clamp-1">{article.title}</p>
+          {copy.originalTitle && (
+            <p className="text-sm text-light-muted dark:text-dark-muted italic mb-3 line-clamp-1">{copy.originalTitle}</p>
           )}
 
           <p className="text-light-muted dark:text-dark-muted leading-relaxed line-clamp-3 mb-6">
-            {article.descriptionZh || article.description}
+            {copy.description || '打开文章查看完整内容。'}
           </p>
 
           <div className="flex items-center justify-between">

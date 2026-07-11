@@ -24,9 +24,9 @@ function timeAgo(dateStr: string): string {
 
 function sourceBadge(source: Paper['source']) {
   const map = {
-    arxiv: { label: 'arXiv', icon: '📄' },
-    openalex: { label: 'OpenAlex', icon: '🔬' },
-    'semantic-scholar': { label: 'S2', icon: '🎓' },
+    arxiv: { label: 'arXiv', monogram: 'AX' },
+    openalex: { label: 'OpenAlex', monogram: 'OA' },
+    'semantic-scholar': { label: 'Semantic Scholar', monogram: 'S2' },
   };
   return map[source] || map.arxiv;
 }
@@ -40,7 +40,7 @@ export default function PaperCard({ paper, style }: { paper: Paper; style?: Reac
     <article className="card group relative flex flex-col h-full animate-slide-up" style={{ animationFillMode: 'both', ...style }}>
       <div className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted mb-3">
         <span className="flex items-center gap-1.5">
-          <span className="text-base">{badge.icon}</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/10 font-mono text-[9px] font-bold text-accent dark:bg-accent-dark/10 dark:text-accent-dark">{badge.monogram}</span>
           <span className="font-medium">{badge.label}</span>
         </span>
         {paper.citationCount != null && paper.citationCount > 0 && (
@@ -56,7 +56,7 @@ export default function PaperCard({ paper, style }: { paper: Paper; style?: Reac
       </div>
 
       <Link href={`/papers/${paper.id}`} className="block flex-1">
-        <h2 className="font-display font-semibold text-[15px] leading-snug mb-2 group-hover:text-accent dark:group-hover:text-accent-dark transition-colors duration-200 line-clamp-3">
+        <h2 className="font-display font-semibold text-[17px] leading-snug mb-2 group-hover:text-accent dark:group-hover:text-accent-dark transition-colors duration-200 line-clamp-3">
           {paper.title}
         </h2>
       </Link>

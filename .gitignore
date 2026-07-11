@@ -9,4 +9,5 @@ data/
 tsconfig.tsbuildinfo
 .git.backup-pre-rewrite/
 .reasonix/
+.learnings/
 上传/

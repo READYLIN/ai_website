@@ -8,14 +8,13 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <div className="container-site py-20 text-center">
-      <h1 className="font-display text-6xl font-bold mb-4">404</h1>
-      <p className="text-light-muted dark:text-dark-muted text-lg mb-8">
-        页面未找到。
-      </p>
-      <Link href="/" className="btn-primary">
-        返回首页
-      </Link>
+    <div className="container-site py-20 sm:py-28">
+      <div className="mx-auto max-w-xl border-l-2 border-accent pl-7 sm:pl-10">
+        <span className="section-label">Error 404</span>
+        <h1 className="mt-3 font-display text-5xl font-bold tracking-tight sm:text-6xl">这一页不在<br />今天的简报里</h1>
+        <p className="mt-5 text-light-muted dark:text-dark-muted">链接可能已经失效，也可能输入有误。你可以回到首页继续浏览最新内容。</p>
+        <Link href="/" className="btn-primary mt-8 inline-flex">返回首页</Link>
+      </div>
     </div>
   );
 }

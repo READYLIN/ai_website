@@ -34,13 +34,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Latin faces with system CJK fallback. Inter and Source Serif 4
-        // handle Latin glyphs; Chinese text silently falls through to the
-        // platform’s native CJK family (macOS: PingFang SC / Songti SC,
-        // Windows: Microsoft YaHei / SimSun, Linux: Noto Sans CJK).
-        sans: ['"Inter"', 'system-ui', '-apple-system', '"Segoe UI"', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
-        display: ['"Source Serif 4"', '"Georgia"', '"Songti SC"', '"SimSun"', 'serif'],
-        mono: ['"JetBrains Mono"', '"Menlo"', '"Consolas"', '"Courier New"', 'monospace'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'sans-serif'],
+        display: ['Source Han Serif SC', 'Noto Serif CJK SC', 'Songti SC', 'STSong', 'SimSun', 'Georgia', 'serif'],
+        mono: ['SFMono-Regular', 'JetBrains Mono', 'Menlo', 'Consolas', 'monospace'],
       },
       fontSize: {
         'display-xl': ['clamp(2.5rem, 5vw, 4rem)', { lineHeight: '1.08', letterSpacing: '-0.01em' }],

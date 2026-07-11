@@ -5,6 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Metadata } from 'next';
 import SanitizedHTML from '@/components/SanitizedHTML';
+import BookmarkButton from '@/components/BookmarkButton';
+import { articleDisplayCopy } from '@/lib/display-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +20,7 @@ export async function generateMetadata({
 
   if (!article) return { title: '文章未找到' };
 
-  const title = article.titleZh || article.title;
-  const description = article.descriptionZh || article.description;
+  const { title, description } = articleDisplayCopy(article);
 
   return {
     title: `${title} — AI 新闻中心`,
@@ -52,8 +53,11 @@ export default async function ArticlePage({
     notFound();
   }
 
+  const copy = articleDisplayCopy(article);
+  const visibleCategories = article.categories.filter((category) => category.length <= 28).slice(0, 6);
+
   return (
-    <div className="container-site py-10 max-w-3xl">
+    <div className="container-site max-w-3xl py-8 sm:py-12">
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm text-light-muted dark:text-dark-muted hover:text-accent dark:hover:text-accent-dark transition-colors mb-8 group"
@@ -65,31 +69,27 @@ export default async function ArticlePage({
       </Link>
 
       <article className="animate-fade-in">
-        <div className="flex items-center gap-2.5 text-sm text-light-muted dark:text-dark-muted mb-5">
-          <span className="text-base">{article.sourceIcon}</span>
-          <span className="font-medium">{article.source}</span>
-          <span className="text-light-border dark:text-dark-border">·</span>
-          <time className="font-mono text-xs">
-            {new Date(article.publishedAt).toLocaleDateString('zh-CN', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </time>
-          {article.author && article.author !== article.source && (
-            <>
-              <span className="text-light-border dark:text-dark-border">·</span>
-              <span>{article.author}</span>
-            </>
-          )}
+        <div className="mb-5 flex items-start justify-between gap-5">
+          <div className="flex flex-wrap items-center gap-2.5 text-sm text-light-muted dark:text-dark-muted">
+            <span className="text-base">{article.sourceIcon}</span>
+            <span className="font-medium">{article.source}</span>
+            <span className="text-light-border dark:text-dark-border">·</span>
+            <time className="font-mono text-xs">
+              {new Date(article.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </time>
+            {article.author && typeof article.author === 'string' && article.author !== article.source && (
+              <><span className="text-light-border dark:text-dark-border">·</span><span className="max-w-48 truncate">{article.author}</span></>
+            )}
+          </div>
+          <BookmarkButton articleId={article.id} />
         </div>
 
         <h1 className="font-display text-display-lg font-bold tracking-tight leading-tight mb-2">
-          {article.titleZh || article.title}
+          {copy.title}
         </h1>
-        {article.titleZh && article.titleZh !== article.title && (
+        {copy.originalTitle && (
           <h2 className="font-display text-xl text-light-muted dark:text-dark-muted mb-6">
-            {article.title}
+            {copy.originalTitle}
           </h2>
         )}
 
@@ -97,7 +97,7 @@ export default async function ArticlePage({
           <div className="mb-8 overflow-hidden rounded-xl">
             <Image
               src={article.imageUrl}
-              alt={article.titleZh || article.title}
+              alt={copy.title}
               width={1200}
               height={675}
               className="w-full aspect-video object-cover"
@@ -106,8 +106,8 @@ export default async function ArticlePage({
           </div>
         )}
 
-        <div className="flex gap-2 mb-8">
-          {article.categories.map((cat) => (
+        <div className="flex flex-wrap gap-2 mb-8">
+          {visibleCategories.map((cat) => (
             <Link
               key={cat}
               href={`/categories/${encodeURIComponent(cat)}`}
@@ -121,13 +121,13 @@ export default async function ArticlePage({
         <div className="prose dark:prose-invert max-w-none">
           <div className="p-5 rounded-xl bg-accent/5 dark:bg-accent-dark/10 border border-accent/10 dark:border-accent-dark/10 mb-8">
             <p className="text-lg leading-relaxed text-light-text dark:text-dark-text font-medium">
-              {article.descriptionZh || article.description}
+              {copy.description || '该信源未提供摘要，请查看正文或访问原始来源。'}
             </p>
           </div>
 
-          {article.descriptionZh && article.descriptionZh !== article.description && (
+          {copy.originalDescription && (
             <p className="text-base leading-relaxed text-light-muted dark:text-dark-muted mb-6 italic">
-              {article.description}
+              {copy.originalDescription}
             </p>
           )}
 
@@ -139,18 +139,13 @@ export default async function ArticlePage({
           )}
 
           {article.contentZh && article.content && article.contentZh !== article.content && (
-            <div className="mt-12 pt-8 border-t border-light-border dark:border-dark-border">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-1 h-4 bg-accent rounded-full" />
-                <h3 className="text-sm font-display font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted">
-                  原文 / English Original
-                </h3>
-              </div>
-              <SanitizedHTML
-                html={article.content}
-                className="text-sm text-light-muted dark:text-dark-muted [&>img]:max-w-full [&>img]:rounded-lg [&>img]:my-6 [&>p]:mb-4 [&>p]:leading-relaxed [&>h2]:mt-8 [&>h2]:mb-4 [&>h3]:mt-6 [&>h3]:mb-3 [&>ul]:my-4 [&>ul]:pl-6 [&>ul]:space-y-2 [&>li]:leading-relaxed opacity-75"
-              />
-            </div>
+            <details className="group mt-12 border-t border-light-border pt-7 dark:border-dark-border">
+              <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg py-2 text-sm font-medium text-light-muted transition-colors hover:text-accent dark:text-dark-muted dark:hover:text-accent-dark">
+                查看原文内容 / English original
+                <span className="text-lg transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+              </summary>
+              <SanitizedHTML html={article.content} className="mt-5 text-sm text-light-muted opacity-80 dark:text-dark-muted [&>img]:max-w-full [&>img]:rounded-lg [&>img]:my-6 [&>p]:mb-4 [&>p]:leading-relaxed [&>h2]:mt-8 [&>h2]:mb-4 [&>h3]:mt-6 [&>h3]:mb-3 [&>ul]:my-4 [&>ul]:pl-6 [&>ul]:space-y-2 [&>li]:leading-relaxed" />
+            </details>
           )}
 
           {!article.contentZh && article.content && (
@@ -161,7 +156,7 @@ export default async function ArticlePage({
           )}
         </div>
 
-        <div className="mt-12 pt-8 border-t border-light-border dark:border-dark-border">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-light-border pt-8 dark:border-dark-border">
           <a
             href={article.url}
             target="_blank"
@@ -173,6 +168,7 @@ export default async function ArticlePage({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </a>
+          <Link href="/" className="text-sm text-light-muted underline decoration-light-border underline-offset-4 hover:text-accent dark:text-dark-muted dark:decoration-dark-border dark:hover:text-accent-dark">继续浏览最新资讯</Link>
         </div>
       </article>
     </div>

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function SearchBar() {
-  const [query, setQuery] = useState('');
+export default function SearchBar({ initialValue = '' }: { initialValue?: string }) {
+  const [query, setQuery] = useState(initialValue);
   const router = useRouter();
 
   const handleSearch = useCallback(
@@ -31,15 +31,19 @@ export default function SearchBar() {
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  useEffect(() => setQuery(initialValue), [initialValue]);
+
   return (
-    <form onSubmit={handleSearch} className="relative">
+    <form onSubmit={handleSearch} className="relative" role="search">
+      <label htmlFor="search-input" className="sr-only">搜索全部文章</label>
       <input
         id="search-input"
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder='搜索文章... (按 "/")'
-        className="input-search pl-10"
+        placeholder='搜索标题、摘要、来源或分类…'
+        className="input-search py-3 pl-11 pr-20"
+        autoComplete="off"
       />
       <svg
         className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-light-muted dark:text-dark-muted"
@@ -49,6 +53,7 @@ export default function SearchBar() {
       >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
+      <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-light-border px-1.5 py-0.5 font-mono text-[10px] text-light-muted dark:border-dark-border dark:text-dark-muted sm:block">/</span>
     </form>
   );
 }

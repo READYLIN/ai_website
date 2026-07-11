@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Article } from '@/lib/types';
+import { articleDisplayCopy } from '@/lib/display-text';
 import BookmarkButton from './BookmarkButton';
 
 function timeAgo(dateStr: string): string {
@@ -44,6 +45,10 @@ export default function ArticleCard({ article, style, linkPrefix = '/articles/' 
   const [imgError, setImgError] = useState(false);
   const fresh = isFresh(article.publishedAt);
   const mins = readingTime(article.contentZh || article.content || article.descriptionZh || article.description);
+  const copy = articleDisplayCopy(article);
+  const categories = article.categories
+    .filter((category) => category !== '传媒监控' && category.length <= 24)
+    .slice(0, 2);
 
   return (
     <article className="card group relative flex flex-col h-full animate-slide-up overflow-hidden" style={{ animationFillMode: 'both', ...style }}>
@@ -55,7 +60,7 @@ export default function ArticleCard({ article, style, linkPrefix = '/articles/' 
           <div className="aspect-video bg-light-border dark:bg-dark-border relative">
             <Image
               src={article.imageUrl}
-              alt={article.title}
+              alt={copy.title}
               width={600}
               height={338}
               className="w-full h-full object-cover grayscale-[35%] transition-all duration-500 ease-out group-hover:grayscale-0 group-hover:scale-[1.04]"
@@ -80,22 +85,22 @@ export default function ArticleCard({ article, style, linkPrefix = '/articles/' 
         <span className="font-mono text-[11px]">{mins} 分钟阅读</span>
       </div>
 
-      <Link href={`${linkPrefix}${slug}`} className="block flex-1">
-        <h2 className="font-display font-semibold text-[16px] leading-snug mb-1.5 group-hover:text-accent dark:group-hover:text-accent-dark transition-colors duration-200 line-clamp-2">{article.titleZh || article.title}</h2>
-        {article.titleZh && article.titleZh !== article.title && (
+      <Link href={`${linkPrefix}${slug}`} className="block flex-1 rounded-sm">
+        <h2 className="font-display font-semibold text-[17px] leading-snug mb-1.5 group-hover:text-accent dark:group-hover:text-accent-dark transition-colors duration-200 line-clamp-2">{copy.title}</h2>
+        {copy.originalTitle && (
           <p className="text-xs text-light-muted dark:text-dark-muted line-clamp-1 mb-2 italic">
-            {article.title}
+            {copy.originalTitle}
           </p>
         )}
       </Link>
 
       <p className="text-sm text-light-muted dark:text-dark-muted leading-relaxed line-clamp-2 mb-4">
-        {article.descriptionZh || article.description}
+        {copy.description || '打开文章查看完整内容。'}
       </p>
 
       <div className="flex items-center justify-between mt-auto pt-3 border-t border-light-border/50 dark:border-dark-border/50">
         <div className="flex gap-1.5 flex-wrap">
-          {article.categories.slice(0, 2).map((cat) => {
+          {categories.map((cat) => {
             const isMonitor = linkPrefix === '/monitor/';
             // In monitor mode, skip the generic '传媒监控' category badge
             if (isMonitor && cat === '传媒监控') return null;

@@ -21,10 +21,10 @@ export default function ArticleList({
 
   if (articles.length === 0) {
     return (
-      <div className="text-center py-20">
-        <p className="text-light-muted dark:text-dark-muted text-lg">
-          未找到文章。
-        </p>
+      <div className="empty-state">
+        <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent dark:bg-accent-dark/10 dark:text-accent-dark" aria-hidden="true">⌕</div>
+        <h2 className="font-display text-xl font-semibold">暂时没有匹配内容</h2>
+        <p className="mt-2 text-sm text-light-muted dark:text-dark-muted">换一个分类或关键词再试。</p>
       </div>
     );
   }

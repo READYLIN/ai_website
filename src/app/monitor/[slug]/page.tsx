@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Metadata } from 'next';
 import SanitizedHTML from '@/components/SanitizedHTML';
+import { articleDisplayCopy } from '@/lib/display-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,12 +19,14 @@ export async function generateMetadata({
 
   if (!article) return { title: '文章未找到' };
 
+  const copy = articleDisplayCopy(article);
+
   return {
-    title: `${article.title} — 传媒监控`,
-    description: article.description,
+    title: `${copy.title} — 传媒监控`,
+    description: copy.description,
     openGraph: {
-      title: article.title,
-      description: article.description,
+      title: copy.title,
+      description: copy.description,
       type: 'article',
       url: article.url,
     },
@@ -42,8 +45,10 @@ export default async function MediaArticlePage({
     notFound();
   }
 
+  const copy = articleDisplayCopy(article);
+
   return (
-    <div className="container-site py-10 max-w-3xl">
+    <div className="container-site max-w-3xl py-8 sm:py-12">
       <Link
         href="/monitor"
         className="inline-flex items-center gap-1.5 text-sm text-light-muted dark:text-dark-muted hover:text-accent dark:hover:text-accent-dark transition-colors mb-8 group"
@@ -66,7 +71,7 @@ export default async function MediaArticlePage({
               day: 'numeric',
             })}
           </time>
-          {article.author && article.author !== article.source && (
+          {article.author && typeof article.author === 'string' && article.author !== article.source && (
             <>
               <span className="text-light-border dark:text-dark-border">·</span>
               <span>{article.author}</span>
@@ -75,14 +80,14 @@ export default async function MediaArticlePage({
         </div>
 
         <h1 className="font-display text-display-lg font-bold tracking-tight leading-tight mb-2">
-          {article.title}
+          {copy.title}
         </h1>
 
         {article.imageUrl && (
           <div className="mb-8 overflow-hidden rounded-xl">
             <Image
               src={article.imageUrl}
-              alt={article.title}
+              alt={copy.title}
               width={1200}
               height={675}
               className="w-full aspect-video object-cover"
@@ -106,7 +111,7 @@ export default async function MediaArticlePage({
         <div className="prose dark:prose-invert max-w-none">
           <div className="p-5 rounded-xl bg-accent/5 dark:bg-accent-dark/10 border border-accent/10 dark:border-accent-dark/10 mb-8">
             <p className="text-lg leading-relaxed text-light-text dark:text-dark-text font-medium">
-              {article.description}
+              {copy.description || '该信源未提供摘要，请查看正文或访问原始来源。'}
             </p>
           </div>
 
@@ -118,7 +123,7 @@ export default async function MediaArticlePage({
           )}
         </div>
 
-        <div className="mt-12 pt-8 border-t border-light-border dark:border-dark-border">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-light-border pt-8 dark:border-dark-border">
           <a
             href={article.url}
             target="_blank"
@@ -130,6 +135,7 @@ export default async function MediaArticlePage({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </a>
+          <Link href="/monitor" className="text-sm text-light-muted underline decoration-light-border underline-offset-4 hover:text-accent dark:text-dark-muted dark:decoration-dark-border dark:hover:text-accent-dark">继续浏览传媒监控</Link>
         </div>
       </article>
     </div>

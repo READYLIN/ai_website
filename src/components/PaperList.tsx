@@ -15,10 +15,10 @@ export default function PaperList({ papers }: { papers: Paper[] }) {
 
   if (papers.length === 0) {
     return (
-      <div className="text-center py-20">
-        <p className="text-light-muted dark:text-dark-muted text-lg">
-          暂无论文数据。arXiv 周末不更新，工作日会自动获取最新论文。
-        </p>
+      <div className="empty-state">
+        <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 font-mono text-xs font-bold text-accent dark:bg-accent-dark/10 dark:text-accent-dark" aria-hidden="true">AX</div>
+        <h2 className="font-display text-xl font-semibold">论文索引正在等待更新</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-light-muted dark:text-dark-muted">arXiv 通常在工作日更新；新论文进入开放信源后会自动出现在这里。</p>
       </div>
     );
   }

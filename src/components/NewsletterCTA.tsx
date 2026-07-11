@@ -10,7 +10,10 @@ export default function NewsletterCTA() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !email.includes('@')) return;
+    if (!email.trim() || !email.includes('@')) {
+      setError('请输入有效的邮箱地址');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -37,26 +40,27 @@ export default function NewsletterCTA() {
   };
 
   return (
-    <section className="card bg-gradient-to-br from-accent/5 to-accent-dark/5 dark:from-accent-dark/10 dark:to-accent/10">
-      <div className="text-center max-w-md mx-auto">
-        <h3 className="font-bold font-display text-xl mb-2">保持关注</h3>
-        <p className="text-sm text-light-muted dark:text-dark-muted mb-4">
-          输入邮箱，我们将通过邮件发送最新 AI 资讯摘要。
-        </p>
+    <section className="relative overflow-hidden rounded-card-lg bg-accent px-6 py-9 text-white shadow-[0_24px_60px_-36px_rgba(181,78,46,0.85)] sm:px-10 sm:py-11">
+      <div className="pointer-events-none absolute -right-10 -top-16 font-display text-[13rem] font-bold leading-none text-white/[0.06]" aria-hidden="true">AI</div>
+      <div className="relative grid items-end gap-7 md:grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)]">
+        <div>
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-white/70">Weekly signal</span>
+          <h2 className="mt-3 max-w-lg font-display text-3xl font-bold leading-tight">一封更短、更有判断力的 AI 周报</h2>
+          <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/75">精选重要发布、论文和产业变化。只发值得你花时间阅读的内容。</p>
+        </div>
         {submitted ? (
-          <div className="space-y-2">
-            <p className="text-green-600 dark:text-green-400 font-medium">
-              感谢订阅！请查看您的邮箱。
-            </p>
+          <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm" aria-live="polite">
+            <p className="font-medium">订阅已记录，请留意确认邮件。</p>
             <button
               onClick={() => setSubmitted(false)}
-              className="text-sm text-accent dark:text-accent-dark hover:underline"
+              className="mt-2 text-sm text-white/75 underline underline-offset-4 hover:text-white"
             >
-              再次订阅
+              使用其他邮箱
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          <form onSubmit={handleSubmit} className="rounded-xl border border-white/15 bg-white/10 p-2 backdrop-blur-sm" noValidate>
+            <div className="flex flex-col gap-2 sm:flex-row">
             <label htmlFor="newsletter-email" className="sr-only">邮箱地址</label>
             <input
               id="newsletter-email"
@@ -64,21 +68,20 @@ export default function NewsletterCTA() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
-              className="input-search flex-1"
+              className="min-w-0 flex-1 rounded-lg border border-white/15 bg-white px-4 py-3 text-sm text-light-text outline-none placeholder:text-light-muted/70 focus:border-white focus:ring-2 focus:ring-white/40"
               autoComplete="email"
               required
             />
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary disabled:opacity-50"
+              className="whitespace-nowrap rounded-lg bg-light-text px-5 py-3 text-sm font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-black active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? '...' : '订阅'}
+              {loading ? '提交中…' : '订阅周报'}
             </button>
+            </div>
+            {error && <p className="px-2 pt-2 text-xs text-white" role="alert">{error}</p>}
           </form>
-        )}
-        {error && (
-          <p className="text-sm text-red-500 mt-2">{error}</p>
         )}
       </div>
     </section>

@@ -27,11 +27,11 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
   }
 
   return (
-    <nav className="flex items-center justify-center gap-1 mt-12" aria-label="分页">
+    <nav className="flex items-center justify-center gap-1.5 mt-12" aria-label="分页">
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="px-3 py-2 text-sm border border-light-border dark:border-dark-border disabled:opacity-40 disabled:cursor-not-allowed hover:border-accent dark:hover:border-accent-dark transition-colors"
+        className="rounded-lg px-3 py-2 text-sm border border-light-border dark:border-dark-border disabled:opacity-40 disabled:cursor-not-allowed hover:border-accent dark:hover:border-accent-dark transition-colors"
         aria-label="上一页"
       >
         ←
@@ -46,7 +46,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
           <button
             key={page}
             onClick={() => onPageChange(page)}
-            className={`px-3 py-2 text-sm border transition-colors ${
+            className={`min-w-9 rounded-lg px-3 py-2 text-sm border transition-colors ${
               page === currentPage
                 ? 'bg-accent text-white border-accent'
                 : 'border-light-border dark:border-dark-border hover:border-accent dark:hover:border-accent-dark'
@@ -61,7 +61,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="px-3 py-2 text-sm border border-light-border dark:border-dark-border disabled:opacity-40 disabled:cursor-not-allowed hover:border-accent dark:hover:border-accent-dark transition-colors"
+        className="rounded-lg px-3 py-2 text-sm border border-light-border dark:border-dark-border disabled:opacity-40 disabled:cursor-not-allowed hover:border-accent dark:hover:border-accent-dark transition-colors"
         aria-label="下一页"
       >
         →

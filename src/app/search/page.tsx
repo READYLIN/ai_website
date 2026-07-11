@@ -26,37 +26,35 @@ function SearchContent() {
   }, []);
 
   useEffect(() => {
-    if (initialQuery && articles.length > 0) {
+    if (initialQuery && !loading) {
       search(initialQuery);
     }
-  }, [initialQuery, articles, search]);
+  }, [initialQuery, loading, articles, search]);
 
   return (
-    <div className="container-site py-10">
-      <section className="mb-8 max-w-2xl">
-        <h1 className="font-display text-3xl font-bold tracking-tight mb-4">
-          搜索
-        </h1>
-        <SearchBar />
+    <div className="container-site py-8 sm:py-12">
+      <section className="mb-10 max-w-2xl">
+        <div className="page-eyebrow"><span className="cursor-mark" aria-hidden="true" /><span className="section-label">Search archive</span></div>
+        <h1 className="font-display text-display-md font-bold tracking-tight mb-5">搜索全部内容</h1>
+        <SearchBar initialValue={initialQuery} />
       </section>
 
       <section>
         {loading ? (
-          <div className="text-center py-20">
-            <p className="text-light-muted dark:text-dark-muted">加载文章中...</p>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" aria-label="正在加载搜索索引">
+            {[0, 1, 2].map((item) => <div key={item} className="card min-h-56"><div className="skeleton-line mb-4 h-3 w-1/3" /><div className="skeleton-line mb-2 h-5 w-full" /><div className="skeleton-line h-5 w-4/5" /></div>)}
           </div>
         ) : query ? (
           <>
             <p className="text-light-muted dark:text-dark-muted mb-6">
-              找到 {results.length} 个关于 &ldquo;{query}&rdquo; 的结果
+              关于“{query}”找到 <span className="font-mono text-light-text dark:text-dark-text">{results.length}</span> 条结果
             </p>
             <ArticleList articles={results} />
           </>
         ) : (
-          <div className="text-center py-20">
-            <p className="text-light-muted dark:text-dark-muted">
-              输入关键词搜索所有文章。
-            </p>
+          <div className="empty-state">
+            <h2 className="font-display text-xl font-semibold">从一个关键词开始</h2>
+            <p className="mt-2 text-sm text-light-muted dark:text-dark-muted">可搜索公司、模型、人物、技术方向或内容来源。</p>
           </div>
         )}
       </section>
@@ -68,8 +66,8 @@ export default function SearchPage() {
   return (
     <Suspense
       fallback={
-        <div className="container-site py-10 text-center">
-          <p className="text-light-muted dark:text-dark-muted">加载中...</p>
+        <div className="container-site py-12">
+          <div className="skeleton-line h-10 max-w-2xl" />
         </div>
       }
     >
