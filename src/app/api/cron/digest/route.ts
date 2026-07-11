@@ -71,7 +71,7 @@ async function handleDigest() {
         subject,
         body,
         status: 'about_to_send',
-        email_type: 'transactional',
+        email_type: 'public',
         publish_date: scheduledTime.toISOString(),
       }),
     });
