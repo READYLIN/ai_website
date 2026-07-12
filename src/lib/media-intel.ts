@@ -1,11 +1,24 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { IntelArticle } from './types';
+import path from 'path';
 
-const MEDIA_DAILY_REPORT =
+// Try project-local data directory first (works in Vercel), fallback to absolute path
+const DATA_DIR = path.join(process.cwd(), 'data');
+
+const MEDIA_DAILY_LOCAL = path.join(DATA_DIR, 'media-intel.json');
+const MEDIA_WEEKLY_LOCAL = path.join(DATA_DIR, 'media-weekly.json');
+
+const MEDIA_DAILY_ABS =
   '/Users/z1/Documents/New project/media_weekly_automation/competitive_intel_last_report.json';
 
-const MEDIA_WEEKLY_SOURCES =
+const MEDIA_WEEKLY_ABS =
   '/Users/z1/Documents/New project/media_weekly_automation/last_report.json';
+
+function resolvePath(local: string, abs: string): string {
+  if (existsSync(local)) return local;
+  if (existsSync(abs)) return abs;
+  return local; // default to local (will fail gracefully)
+}
 
 interface MediaDailyItem {
   title: string;
@@ -39,7 +52,7 @@ function hashId(s: string): string {
  */
 export function fetchMediaIntel(): IntelArticle[] {
   try {
-    const raw = readFileSync(MEDIA_DAILY_REPORT, 'utf-8');
+    const raw = readFileSync(resolvePath(MEDIA_DAILY_LOCAL, MEDIA_DAILY_ABS), 'utf-8');
     const data = JSON.parse(raw);
     const items: MediaDailyItem[] = data.items || [];
 
@@ -71,7 +84,7 @@ export function fetchMediaIntel(): IntelArticle[] {
  */
 export function fetchMediaWeeklySources(): IntelArticle[] {
   try {
-    const raw = readFileSync(MEDIA_WEEKLY_SOURCES, 'utf-8');
+    const raw = readFileSync(resolvePath(MEDIA_WEEKLY_LOCAL, MEDIA_WEEKLY_ABS), 'utf-8');
     const data = JSON.parse(raw);
     const sources: MediaWeeklySource[] = data.sources || [];
 

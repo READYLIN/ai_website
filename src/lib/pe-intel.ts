@@ -1,11 +1,17 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { IntelArticle } from './types';
+import path from 'path';
 
-const PE_REPORT_PATH =
+const DATA_DIR = path.join(process.cwd(), 'data');
+const PE_LOCAL = path.join(DATA_DIR, 'pe-intel.json');
+const PE_ABS =
   '/Users/z1/Documents/New project/private_equity_fund_automation/pe_vc_weekly_last_report.json';
 
-const PE_CONFIG_PATH =
-  '/Users/z1/Documents/New project/private_equity_fund_automation/config.json';
+function resolvePath(): string {
+  if (existsSync(PE_LOCAL)) return PE_LOCAL;
+  if (existsSync(PE_ABS)) return PE_ABS;
+  return PE_LOCAL; // default to local (will fail gracefully)
+}
 
 interface PEItem {
   title: string;
@@ -36,7 +42,7 @@ function hashId(s: string): string {
  */
 export function fetchPEIntel(): IntelArticle[] {
   try {
-    const raw = readFileSync(PE_REPORT_PATH, 'utf-8');
+    const raw = readFileSync(resolvePath(), 'utf-8');
     const data = JSON.parse(raw);
     const items: PEItem[] = data.items || [];
 

@@ -4,10 +4,14 @@ out/
 .env
 .env.local
 .vercel
-data/
+data/*
+!data/media-intel.json
+!data/pe-intel.json
 .env*
 tsconfig.tsbuildinfo
 .git.backup-pre-rewrite/
 .reasonix/
 .learnings/
 上传/
+.agents/
+.claude/skills/
