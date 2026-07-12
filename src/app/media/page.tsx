@@ -1,6 +1,6 @@
 import { fetchAllMediaIntel, getMediaGroups } from '@/lib/media-intel';
 import { serialize } from '@/lib/serialize';
-import MediaIntelList from '@/components/MediaIntelList';
+import GroupedIntelList from '@/components/GroupedIntelList';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,7 +70,7 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
 
       {/* Paginated list */}
       <section className="mb-16">
-        <MediaIntelList articles={filtered} linkPrefix="/media/" />
+        <GroupedIntelList articles={filtered} linkPrefix="/media/" />
       </section>
     </div>
   );

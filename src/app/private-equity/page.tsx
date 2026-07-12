@@ -1,6 +1,6 @@
 import { fetchPEIntel, getPEGroups, getPEDimensions } from '@/lib/pe-intel';
 import { serialize } from '@/lib/serialize';
-import MediaIntelList from '@/components/MediaIntelList';
+import GroupedIntelList from '@/components/GroupedIntelList';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,7 +118,7 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
 
       {/* Paginated list */}
       <section className="mb-16">
-        <MediaIntelList articles={filtered} linkPrefix="/private-equity/" />
+        <GroupedIntelList articles={filtered} linkPrefix="/private-equity/" />
       </section>
     </div>
   );
