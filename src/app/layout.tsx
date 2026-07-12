@@ -6,7 +6,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aiweb-roan.vercel.app'),
-  title: 'AI 新闻中心 — 最新 AI 资讯与动态',
+  title: '新闻中心 · AI资讯 · 传媒 · 私募',
   description: '精选来自最佳来源的人工智能新闻。每日更新 AI、机器学习和技术领域的最新资讯。',
   icons: {
     icon: '/icon.svg',

@@ -22,6 +22,23 @@ export interface RSSSource {
   category: 'english' | 'chinese';
 }
 
+export interface IntelArticle {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  categories: string[];
+  publishedAt: string;
+  author: string;
+  company?: string;
+  companyGroup?: string;
+  priority?: string;
+  dimension?: string;
+  matrixLabel?: string;
+  credibility?: string;
+}
+
 export interface SearchResult {
   article: Article;
   score: number;

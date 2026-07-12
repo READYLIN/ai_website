@@ -53,6 +53,20 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/monitor',
+        destination: '/media',
+        permanent: true,
+      },
+      {
+        source: '/monitor/:slug',
+        destination: '/media',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

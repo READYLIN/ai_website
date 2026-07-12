@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const NAV_LINKS = [
-  { href: '/', label: '最新', icon: 'M4 6h16M4 12h10M4 18h7' },
+  { href: '/media', label: '传媒', icon: 'M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M13.5 4.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z' },
+  { href: '/private-equity', label: '私募', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { href: '/', label: 'AI资讯', icon: 'M4 6h16M4 12h10M4 18h7' },
   { href: '/papers', label: '论文', icon: 'M9 12h6m-6 4h6m1 5H8a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  { href: '/monitor', label: '传媒', icon: 'M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M13.5 4.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z' },
   { href: '/bookmarks', label: '收藏夹', icon: 'M5 2h14a1 1 0 011 1v19.143a.5.5 0 01-.766.424L12 18.03l-7.234 4.536A.5.5 0 014 22.143V3a1 1 0 011-1z' },
 ];
 
@@ -82,7 +83,10 @@ export default function Header() {
     }
   };
 
-  const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
+  };
 
   return (
     <header
@@ -93,14 +97,14 @@ export default function Header() {
       }`}
     >
       <div className={`container-site flex items-center justify-between transition-all duration-300 ${scrolled ? 'h-14' : 'h-16'}`}>
-        <Link href="/" className="flex items-center gap-2.5 group" aria-label="AI 新闻中心首页">
+        <Link href="/media" className="flex items-center gap-2.5 group" aria-label="新闻中心首页">
           <div className="relative w-8 h-8 rounded-[10px] bg-accent flex items-center justify-center transition-transform duration-200 group-hover:-rotate-2 group-hover:scale-105 shadow-[0_6px_16px_-8px_rgba(181,78,46,0.85)]">
             <span className="text-white font-display font-bold text-sm">AI</span>
             <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-light-bg bg-white dark:border-dark-bg" aria-hidden="true" />
           </div>
           <span className="hidden sm:block">
             <span className="block text-base font-display font-bold tracking-tight leading-none">新闻中心</span>
-            <span className="mt-1 block font-mono text-[8px] uppercase tracking-[0.18em] text-light-muted dark:text-dark-muted">AI intelligence</span>
+            <span className="mt-1 block font-mono text-[8px] uppercase tracking-[0.18em] text-light-muted dark:text-dark-muted">Intelligence hub</span>
           </span>
         </Link>
 
