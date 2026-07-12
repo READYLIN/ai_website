@@ -44,14 +44,14 @@ async function handleDigest() {
 
     const { subject, body } = buildDigest(todayArticles);
 
-    // Schedule send at 11:50 Beijing time (UTC+8 → 3:50 UTC).
-    // Cron triggers at 11:45, giving ~5 min for fetch + translate + build.
+    // Schedule send at 11:40 Beijing time (UTC+8 → 3:40 UTC).
+    // Cron triggers at 11:35, giving ~5 min for fetch + translate + build.
     const now = new Date();
     const scheduledTime = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
       now.getUTCDate(),
-      3, 50, 0
+      3, 40, 0
     ));
     // If cron runs after 3:50 UTC for any reason, don't schedule in the past
     if (scheduledTime <= now) {

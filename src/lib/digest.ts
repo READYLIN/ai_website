@@ -5,179 +5,130 @@ export interface DigestBuildResult {
   body: string;
 }
 
-// ─── Brand palette (synced with tailwind.config.ts) ──────────
-const COLOR = {
-  // Accent: clay/terracotta — warm, distinctive, matches site
-  accent:        '#B54E2E',
-  accentHover:   '#9A3F22',
-  accentSoft:    '#FFF5F0',
-
-  // Warm paper palette
-  bg:            '#FAF9F5',
-  bgAlt:         '#F5F2EB',
-  card:          '#FFFFFF',
-  cardBorder:    '#EBE7DE',
-
-  // Type colors
-  heading:       '#1F1E1C',
-  body:          '#3D3833',
-  muted:         '#736C5F',
-  faint:         '#A0988A',
-
-  // Dividers
-  rule:          '#E8E4DA',
-  ruleLight:     '#F0EDE5',
-
-  // On-dark
-  white:         '#FFFFFF',
-  whiteMuted:    'rgba(255,255,255,0.82)',
+// ─── Minimalist tech palette ─────────────────────────────────
+const C = {
+  bg:       '#0a0a0b',
+  surface:  '#111113',
+  raised:   '#18181b',
+  border:   '#252529',
+  text:     '#f4f4f5',
+  body:     '#a1a1aa',
+  muted:    '#71717a',
+  faint:    '#3f3f46',
+  accent:   '#ffffff',
+  link:     '#a78bfa',    // soft violet — single accent
+  pillBg:   '#18181b',
+  pillText: '#a1a1aa',
 };
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-/** Escape ONLY HTML special characters. Leave Chinese/Unicode intact. */
-function esc(str: string): string {
-  return (str || '')
+function esc(s: string): string {
+  return (s || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
 
+/** Strip HTML tags AND escape — produces clean plain text safe for email. */
+function clean(s: string, max?: number): string {
+  const stripped = (s || '').replace(/<[^>]+>/g, '');
+  const text = stripped.replace(/\s+/g, ' ').trim();
+  const truncated = max && text.length > max ? text.slice(0, max) + '…' : text;
+  return esc(truncated);
+}
+
 function todayCN(): string {
   return new Date().toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   });
 }
 
-/** ISO → Beijing time "MM-DD HH:mm" */
 function beijingTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const bj = new Date(d.getTime() + 8 * 3600_000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(bj.getUTCMonth() + 1)}-${pad(bj.getUTCDate())} ${pad(bj.getUTCHours())}:${pad(bj.getUTCMinutes())}`;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(bj.getUTCMonth() + 1)}-${p(bj.getUTCDate())} ${p(bj.getUTCHours())}:${p(bj.getUTCMinutes())}`;
 }
 
-/** Clean snippet: strip HTML, take first N chars, add ellipsis. */
-function snippet(article: Article, max: number): string {
-  const raw = article.descriptionZh || article.description || '';
-  const plain = raw.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-  if (plain.length <= max) return esc(plain);
-  return esc(plain.slice(0, max)) + '…';
-}
+// ─── Components ──────────────────────────────────────────────
 
-// ─── Card builder ────────────────────────────────────────────
+function articleRow(a: Article, idx: number): string {
+  const title   = clean(a.titleZh || a.title);
+  const source  = clean(a.source || '');
+  const cats    = (a.categories || []).filter(c => c !== '传媒监控').slice(0, 2);
+  const catStr  = cats.map(c => clean(c)).join('  ');
+  const time    = beijingTime(a.publishedAt);
+  const url     = esc(a.url || '');
+  const desc    = clean(a.descriptionZh || a.description || '', 200);
 
-function articleCard(article: Article): string {
-  const title    = esc(article.titleZh || article.title);
-  const source   = esc(article.source || '');
-  const category = esc(
-    (article.categories || [])
-      .filter(c => c !== '传媒监控')
-      .slice(0, 3)
-      .join(' · ')
-  );
-  const time     = beijingTime(article.publishedAt);
-  const url      = esc(article.url || '');
-  const desc     = snippet(article, 300);
-  const img      = article.imageUrl ? esc(article.imageUrl) : '';
-
-  // Meta line: source · category · time
-  const metaParts = [source, category, time].filter(Boolean);
-  const metaLine  = metaParts.join(' &nbsp;·&nbsp; ');
-
-  // Optional image block
-  const imgBlock = img
-    ? `
-                    <!-- Thumbnail -->
-                    <td width="100" style="width:100px;vertical-align:top;padding-left:20px;">
-                      <img src="${img}" width="100" height="100" alt=""
-                           style="display:block;width:100px;height:100px;border-radius:10px;object-fit:cover;border:1px solid ${COLOR.ruleLight};" />
-                    </td>`
-    : '';
+  // Source pill
+  const pills = [source, catStr].filter(Boolean).map(t =>
+    `<span style="display:inline-block;padding:3px 8px;margin-right:6px;margin-bottom:4px;font-size:11px;line-height:1.4;color:${C.pillText};background:${C.pillBg};border-radius:4px;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">${t}</span>`
+  ).join('');
 
   const descBlock = desc
-    ? `
-                    <p style="margin:10px 0 0 0;font-size:15px;line-height:1.72;color:${COLOR.body};">
-                      ${desc}
-                    </p>`
+    ? `<p style="margin:0 0 0 0;font-size:13px;line-height:1.7;color:${C.body};">${desc}</p>`
     : '';
 
   return `
-      <!-- Article Card -->
       <tr>
-        <td style="padding:0 0 28px 0;">
+        <td style="padding:0 0 32px 0;">
 
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                 style="background:${COLOR.card};border:1px solid ${COLOR.cardBorder};border-radius:12px;">
+          <!-- Top rule except first item -->
+          ${idx > 0 ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr><td style="border-top:1px solid ${C.border};"></td></tr></table>` : ''}
+
+          <!-- Meta -->
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
             <tr>
-              <td style="padding:22px 22px 20px 22px;">
-
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-
-                    <!-- Text column -->
-                    <td valign="top" style="${img ? 'padding-right:20px;' : ''}">
-
-                      <!-- Meta line -->
-                      <p style="margin:0 0 10px 0;font-size:12px;line-height:1.5;color:${COLOR.muted};letter-spacing:0.03em;">
-                        ${metaLine}
-                      </p>
-
-                      <!-- Title -->
-                      <a href="${url}" target="_blank"
-                         style="display:block;text-decoration:none;color:${COLOR.heading};font-size:18px;font-weight:700;line-height:1.45;font-family:Georgia,'Songti SC','Noto Serif CJK SC',serif;">
-                        ${title}
-                      </a>
-${descBlock}
-                      <!-- CTA -->
-                      <a href="${url}" target="_blank"
-                         style="display:inline-block;margin-top:14px;padding:8px 18px;font-size:13px;font-weight:600;line-height:1.4;color:${COLOR.white};background:${COLOR.accent};border-radius:7px;text-decoration:none;">
-                        阅读原文 &rarr;
-                      </a>
-                    </td>
-${imgBlock}
-                  </tr>
-                </table>
-
+              <td>
+                ${pills}
+                <span style="display:inline-block;font-size:11px;color:${C.muted};vertical-align:middle;font-family:'SF Mono','JetBrains Mono','Menlo',monospace;">${time}</span>
               </td>
             </tr>
           </table>
 
+          <!-- Title -->
+          <a href="${url}" target="_blank"
+             style="display:block;margin-bottom:${desc ? '10px' : '0'};text-decoration:none;color:${C.text};font-size:16px;font-weight:600;line-height:1.55;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;letter-spacing:-0.01em;">
+            ${title}
+          </a>
+
+          ${descBlock}
+
+          <!-- Arrow link -->
+          <a href="${url}" target="_blank"
+             style="display:inline-block;margin-top:12px;font-size:12px;font-weight:500;color:${C.link};text-decoration:none;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;letter-spacing:0.02em;">
+            Read &rarr;
+          </a>
+
         </td>
       </tr>`;
 }
 
-function sectionDivider(): string {
+function sectionHead(label: string, count: number): string {
   return `
       <tr>
-        <td style="padding:4px 0 32px 0;">
+        <td style="padding:0 0 24px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="border-top:1px solid ${COLOR.rule};"></td>
+              <td>
+                <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:${C.muted};text-transform:uppercase;font-family:'SF Mono','JetBrains Mono','Menlo',monospace;">
+                  ${esc(label)}
+                </span>
+                <span style="display:inline-block;margin-left:8px;font-size:11px;color:${C.faint};font-family:'SF Mono','JetBrains Mono','Menlo',monospace;">
+                  ${count}
+                </span>
+              </td>
             </tr>
           </table>
         </td>
       </tr>`;
 }
 
-function sectionHeader(title: string, count: number): string {
-  return `
-      <tr>
-        <td style="padding:0 0 20px 0;">
-          <h2 style="margin:0;font-size:20px;font-weight:700;color:${COLOR.heading};font-family:Georgia,'Songti SC','Noto Serif CJK SC',serif;line-height:1.3;">
-            ${esc(title)}
-            <span style="font-size:14px;font-weight:400;color:${COLOR.muted};margin-left:6px;">${count} 篇</span>
-          </h2>
-        </td>
-      </tr>`;
-}
-
-// ─── Main builder ────────────────────────────────────────────
+// ─── Main ────────────────────────────────────────────────────
 
 export function buildDigest(articles: Article[]): DigestBuildResult {
   const news   = articles.filter(a => !a.categories.includes('论文'));
@@ -185,134 +136,102 @@ export function buildDigest(articles: Article[]): DigestBuildResult {
   const date   = todayCN();
   const total  = articles.length;
 
-  const newsCards   = news.map(articleCard).join('\n');
-  const paperCards  = papers.map(articleCard).join('\n');
-
   const body = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!--[if !mso]><!-->
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <!--<![endif]-->
-  <title>AI 新闻日报</title>
+  <!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge" /><!--<![endif]-->
+  <title>AI Daily</title>
 </head>
-<body style="margin:0;padding:0;background:${COLOR.bg};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLOR.bg};">
+<body style="margin:0;padding:0;background:${C.bg};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};">
     <tr>
-      <td align="center" style="padding:32px 16px 40px 16px;">
+      <td align="center" style="padding:40px 16px 48px 16px;">
 
-        <!-- ── Outer wrapper (600px) ── -->
+        <!-- ═══ WRAPPER ═══ -->
         <table role="presentation" width="600" cellpadding="0" cellspacing="0"
-               style="max-width:600px;width:100%;background:${COLOR.card};border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+               style="max-width:600px;width:100%;background:${C.surface};border:1px solid ${C.border};border-radius:1px;">
 
-          <!-- ═══════ HEADER ═══════ -->
+          <!-- ── HEADER ── -->
           <tr>
-            <td style="background:${COLOR.accent};padding:36px 32px 32px 32px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <td style="padding:40px 40px 0 40px;">
 
-                <!-- Brand badge row -->
+              <!-- Dot + brand -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
                 <tr>
-                  <td>
-                    <table role="presentation" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td style="background:${COLOR.white};border-radius:8px;padding:7px 12px;">
-                          <span style="font-size:15px;font-weight:800;color:${COLOR.accent};letter-spacing:0.06em;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">AI</span>
-                        </td>
-                        <td style="padding-left:10px;">
-                          <span style="font-size:17px;font-weight:700;color:${COLOR.white};letter-spacing:0.02em;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">新闻中心</span>
-                        </td>
-                      </tr>
-                    </table>
+                  <td width="6" height="6" style="width:6px;height:6px;background:${C.link};border-radius:50%;"></td>
+                  <td style="padding-left:10px;font-size:12px;font-weight:600;letter-spacing:0.06em;color:${C.text};font-family:'SF Mono','JetBrains Mono','Menlo',monospace;">
+                    AI DAILY
                   </td>
                 </tr>
-
-                <!-- Headline -->
-                <tr>
-                  <td style="padding-top:18px;">
-                    <h1 style="margin:0;font-size:26px;font-weight:700;color:${COLOR.white};line-height:1.25;font-family:Georgia,'Songti SC','Noto Serif CJK SC',serif;">
-                      AI 新闻日报
-                    </h1>
-                  </td>
-                </tr>
-
-                <!-- Date + count -->
-                <tr>
-                  <td style="padding-top:8px;">
-                    <p style="margin:0;font-size:14px;color:${COLOR.whiteMuted};line-height:1.5;">
-                      ${esc(date)} &nbsp;·&nbsp; 共 <strong style="color:${COLOR.white};font-weight:700;">${total}</strong> 篇精选内容
-                    </p>
-                  </td>
-                </tr>
-
               </table>
+
+              <!-- Date + count -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
+                <tr>
+                  <td style="font-size:13px;line-height:1.6;color:${C.body};font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">
+                    ${esc(date)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-top:4px;">
+                    <span style="font-size:28px;font-weight:700;color:${C.text};line-height:1.2;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;letter-spacing:-0.02em;">
+                      ${total}
+                    </span>
+                    <span style="font-size:14px;font-weight:400;color:${C.muted};padding-left:8px;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">
+                      articles today
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Full-width rule -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:0;">
+                <tr>
+                  <td style="border-top:1px solid ${C.border};"></td>
+                </tr>
+              </table>
+
             </td>
           </tr>
 
-          <!-- ═══════ BODY ═══════ -->
+          <!-- ── BODY ── -->
           <tr>
-            <td style="padding:28px 32px;background:${COLOR.bgAlt};">
+            <td style="padding:36px 40px 0 40px;">
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 
-                <!-- Intro -->
-                <tr>
-                  <td style="padding:0 0 28px 0;">
-                    <p style="margin:0;font-size:14px;line-height:1.65;color:${COLOR.body};">
-                      早上好 ☀️&nbsp; 以下是过去 24 小时内值得关注的 AI 资讯与前沿论文，按发布时间排列。
-                    </p>
-                  </td>
-                </tr>
+                ${news.length > 0 ? sectionHead('News', news.length) + news.map((a, i) => articleRow(a, i)).join('') : ''}
 
-                <!-- ── AI 资讯 Section ── -->
-                ${news.length > 0 ? sectionHeader('📰 AI 资讯', news.length) + newsCards + sectionDivider() : ''}
-
-                <!-- ── 论文精选 Section ── -->
-                ${papers.length > 0 ? sectionHeader('📄 论文精选', papers.length) + paperCards + '' : ''}
+                ${papers.length > 0 ? sectionHead('Papers', papers.length) + papers.map((a, i) => articleRow(a, i)).join('') : ''}
 
               </table>
 
             </td>
           </tr>
 
-          <!-- ═══════ FOOTER ═══════ -->
+          <!-- ── FOOTER ── -->
           <tr>
-            <td style="padding:24px 32px;border-top:1px solid ${COLOR.rule};background:${COLOR.accentSoft};">
+            <td style="padding:20px 40px 36px 40px;">
+
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="padding-bottom:8px;">
-                    <p style="margin:0;font-size:12px;line-height:1.7;color:${COLOR.muted};">
-                      共 <strong style="color:${COLOR.heading};">${total}</strong> 篇内容 &nbsp;·&nbsp; 由 AI 新闻中心自动整理发送
+                  <td style="border-top:1px solid ${C.border};padding-top:20px;">
+                    <p style="margin:0 0 8px 0;font-size:11px;line-height:1.7;color:${C.faint};font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">
+                      You received this email because you subscribed to AI Daily.
                     </p>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <p style="margin:0;font-size:12px;line-height:1.7;color:${COLOR.faint};">
-                      你收到这封邮件是因为订阅了 AI 新闻中心日报。
-                      <br/>如需退订，请直接回复 <strong style="color:${COLOR.muted};">stop</strong>。
+                    <p style="margin:0;font-size:11px;line-height:1.7;color:${C.faint};font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;">
+                      Reply <span style="color:${C.muted};">stop</span> to unsubscribe &nbsp;·&nbsp;
+                      <a href="https://aiweb-roan.vercel.app" target="_blank" style="color:${C.muted};text-decoration:none;">aiweb-roan.vercel.app</a>
                     </p>
                   </td>
                 </tr>
               </table>
+
             </td>
           </tr>
 
-        </table>
-
-        <!-- ── Copyright line ── -->
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0"
-               style="max-width:600px;width:100%;">
-          <tr>
-            <td align="center" style="padding:20px 0 0 0;">
-              <p style="margin:0;font-size:11px;color:${COLOR.faint};line-height:1.5;">
-                &copy; AI 新闻中心 &nbsp;·&nbsp;
-                <a href="https://aiweb-roan.vercel.app" target="_blank"
-                   style="color:${COLOR.muted};text-decoration:underline;">aiweb-roan.vercel.app</a>
-              </p>
-            </td>
-          </tr>
         </table>
 
       </td>
@@ -321,7 +240,7 @@ export function buildDigest(articles: Article[]): DigestBuildResult {
 </body>
 </html>`;
 
-  const subject = `📰 AI 日报 · ${date} · ${total} 篇`;
+  const subject = `AI Daily · ${date} · ${total} articles`;
 
   return { subject, body };
 }
