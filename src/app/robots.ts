@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: '/api/',
     },
-    sitemap: 'https://ai-news-hub.vercel.app/sitemap.xml',
+    sitemap: 'https://aiweb-roan.vercel.app/sitemap.xml',
   };
 }

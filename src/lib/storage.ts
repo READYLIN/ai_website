@@ -26,12 +26,19 @@ function getMonthKey(dateStr: string): string {
 }
 
 function getTargetMonths(): string[] {
-  // Return the months we want to store (June + July 2026 by default)
-  // Can be overridden with STORAGE_MONTHS env var (comma-separated)
+  // Return current month plus previous 2 months (rolling window).
+  // Overridable with STORAGE_MONTHS env var (comma-separated).
   const env = process.env.STORAGE_MONTHS;
   if (env) return env.split(',').map(s => s.trim());
 
-  return ['2026-06', '2026-07'];
+  const now = new Date();
+  const months: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    months.push(key);
+  }
+  return months;
 }
 
 // ─── Article Storage ──────────────────────────────────────────
