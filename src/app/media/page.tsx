@@ -18,6 +18,7 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
     : allArticles;
 
   const companies = new Set(allArticles.map((a) => a.company).filter(Boolean));
+  const totalTracked = 88; // from config.json: 7 categories, 88 companies total
 
   return (
     <div className="container-site py-8 sm:py-12">
@@ -30,7 +31,7 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
           传媒监控
         </h1>
         <p className="text-light-muted dark:text-dark-muted text-lg max-w-2xl leading-relaxed">
-          追踪 {companies.size} 家媒体公司与机构经营动态，覆盖报业集团、广电系、户外媒体、央媒、出版传媒等七大分类。
+          追踪 88 家媒体公司与机构经营动态，覆盖报业集团、广电系、户外媒体、央媒、出版传媒等七大分类。本期报告覆盖 {companies.size} 家公司。
         </p>
         <p className="mt-5 font-mono text-xs text-light-muted dark:text-dark-muted">
           已收录 {allArticles.length} 条情报 · {groups.length} 个分类

@@ -22,6 +22,7 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
   });
 
   const companies = new Set(allArticles.map((a) => a.company).filter(Boolean));
+  const totalTracked = 435; // from config.json: 3 tiers, 435 companies total
   const p0Count = allArticles.filter((a) => a.priority === 'P0').length;
   const p1Count = allArticles.filter((a) => a.priority === 'P1').length;
   const p2Count = allArticles.filter((a) => a.priority === 'P2').length;
@@ -37,7 +38,7 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
           私募股权
         </h1>
         <p className="text-light-muted dark:text-dark-muted text-lg max-w-2xl leading-relaxed">
-          追踪 {companies.size} 家私募/创投管理人的募资、投资、退出、人事与合规动态，覆盖核心机构、活跃机构与观察名单。
+          追踪 435 家私募/创投管理人的募资、投资、退出、人事与合规动态，覆盖核心机构、活跃机构与观察名单。本期报告覆盖 {companies.size} 家机构。
         </p>
 
         {/* Stats row */}
