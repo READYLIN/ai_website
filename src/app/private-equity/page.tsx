@@ -1,6 +1,6 @@
 import { fetchPEIntel, getPEGroups, getPEDimensions } from '@/lib/pe-intel';
 import { serialize } from '@/lib/serialize';
-import IntelCard from '@/components/IntelCard';
+import MediaIntelList from '@/components/MediaIntelList';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +22,6 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
   });
 
   const companies = new Set(allArticles.map((a) => a.company).filter(Boolean));
-  const totalTracked = 435; // from config.json: 3 tiers, 435 companies total
   const p0Count = allArticles.filter((a) => a.priority === 'P0').length;
   const p1Count = allArticles.filter((a) => a.priority === 'P1').length;
   const p2Count = allArticles.filter((a) => a.priority === 'P2').length;
@@ -117,25 +116,9 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
         )}
       </section>
 
-      {/* Article grid */}
+      {/* Paginated list */}
       <section className="mb-16">
-        {filtered.length === 0 ? (
-          <div className="empty-state">
-            <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent dark:bg-accent-dark/10 dark:text-accent-dark" aria-hidden="true">⌕</div>
-            <h2 className="font-display text-xl font-semibold">暂无匹配内容</h2>
-            <p className="mt-2 text-sm text-light-muted dark:text-dark-muted">该筛选条件下暂无数据。</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((article, index) => (
-              <IntelCard
-                key={article.id}
-                article={article}
-                style={{ animationDelay: `${index * 60}ms` }}
-              />
-            ))}
-          </div>
-        )}
+        <MediaIntelList articles={filtered} linkPrefix="/private-equity/" />
       </section>
     </div>
   );

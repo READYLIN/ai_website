@@ -1,9 +1,10 @@
 import Link from 'next/link';
 
 const primaryLinks = [
-  { href: '/', label: '最新资讯' },
+  { href: '/media', label: '传媒监控' },
+  { href: '/private-equity', label: '私募股权' },
+  { href: '/', label: 'AI资讯' },
   { href: '/papers', label: 'AI 论文' },
-  { href: '/monitor', label: '传媒监控' },
   { href: '/bookmarks', label: '收藏夹' },
 ];
 
