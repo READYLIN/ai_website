@@ -19,7 +19,7 @@ export default function Footer() {
               <span className="font-display text-lg font-bold">新闻中心</span>
             </Link>
             <p className="mt-3 max-w-md text-sm leading-relaxed text-light-muted dark:text-dark-muted">
-              聚合公开信源中的 AI 新闻与研究，提供中文摘要，并始终保留原始出处。
+              聚合 AI 新闻、前沿论文、传媒经营动态与私募股权情报。每日更新，提供中文摘要并保留原始出处。
             </p>
           </div>
           <nav className="flex flex-wrap gap-x-5 gap-y-3 text-sm md:justify-end" aria-label="页脚导航">
