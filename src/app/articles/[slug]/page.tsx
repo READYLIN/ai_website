@@ -172,8 +172,32 @@ export default async function ArticlePage({
           <Link href="/" className="text-sm text-light-muted underline decoration-light-border underline-offset-4 hover:text-accent dark:text-dark-muted dark:decoration-dark-border dark:hover:text-accent-dark">继续浏览最新资讯</Link>
         </div>
 
+        {/* Share buttons */}
+        <div className="flex items-center gap-3 mt-6 pt-6 border-t border-light-border dark:border-dark-border">
+          <span className="text-xs text-light-muted">分享：</span>
+          <button onClick={() => { navigator.clipboard.writeText(article.url); alert('链接已复制'); }} className="text-xs px-3 py-1.5 rounded-lg border border-light-border dark:border-dark-border hover:bg-light-border/30 transition-colors">
+            复制链接
+          </button>
+          <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(copy.title)}&url=${encodeURIComponent(article.url)}`} target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1.5 rounded-lg border border-light-border dark:border-dark-border hover:bg-light-border/30 transition-colors">
+            X/Twitter
+          </a>
+        </div>
+
         <RelatedArticles current={article} />
       </article>
+
+      {/* JSON-LD structured data */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: copy.title,
+        description: copy.description,
+        datePublished: article.publishedAt,
+        author: { '@type': 'Organization', name: article.source },
+        publisher: { '@type': 'Organization', name: 'AI 新闻中心', url: 'https://aiweb-roan.vercel.app' },
+        url: article.url,
+        ...(article.imageUrl ? { image: article.imageUrl } : {}),
+      }) }} />
     </div>
   );
 }
