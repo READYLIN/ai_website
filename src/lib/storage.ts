@@ -61,6 +61,8 @@ export async function saveArticles(articles: Article[]): Promise<number> {
       // HSETNX - only save if not already present (avoids overwriting with same data)
       const added = await redis.hsetnx(key, article.id, json);
       if (added) savedCount++;
+      // Auto-expire after 90 days
+      redis.expire(key, 90 * 86400).catch(() => {});
     } catch (err) {
       console.error(`[storage] Failed to save article ${article.id}:`, err);
     }

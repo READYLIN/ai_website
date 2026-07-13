@@ -7,6 +7,7 @@ import { Metadata } from 'next';
 import SanitizedHTML from '@/components/SanitizedHTML';
 import BookmarkButton from '@/components/BookmarkButton';
 import { articleDisplayCopy } from '@/lib/display-text';
+import RelatedArticles from '@/components/RelatedArticles';
 
 export const dynamic = 'force-dynamic';
 
@@ -170,6 +171,8 @@ export default async function ArticlePage({
           </a>
           <Link href="/" className="text-sm text-light-muted underline decoration-light-border underline-offset-4 hover:text-accent dark:text-dark-muted dark:decoration-dark-border dark:hover:text-accent-dark">继续浏览最新资讯</Link>
         </div>
+
+        <RelatedArticles current={article} />
       </article>
     </div>
   );

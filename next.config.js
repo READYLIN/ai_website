@@ -48,6 +48,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/rss.xml',
+        destination: '/api/rss',
+      },
+      {
         source: '/favicon.ico',
         destination: '/icon.svg',
       },
