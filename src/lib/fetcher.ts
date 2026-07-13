@@ -45,7 +45,9 @@ async function fetchSingleSource(source: (typeof rssSources)[0]): Promise<Articl
 
     const articles = await Promise.all(
       items.map(async (item) => {
-        const title = item.title || 'Untitled';
+        const rawTitle = item.title || 'Untitled';
+        // Strip HTML tags from title — some RSS feeds embed full HTML docs
+        const title = decodeHtmlEntities(rawTitle.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
         const rssDescription = item.contentSnippet
           ? item.contentSnippet.slice(0, 300)
           : item.content

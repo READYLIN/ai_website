@@ -117,7 +117,7 @@ function SearchContent() {
                     </div>
                     <h3 className="font-display text-sm font-semibold leading-snug mb-2 line-clamp-2">
                       <a href={`${TYPE_ROUTES[r.type] || '/articles/'}${r.id}`} className="text-light-text dark:text-dark-text hover:text-accent">
-                        {r.titleZh || r.title}
+                        {(r.titleZh || r.title).replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}
                       </a>
                     </h3>
                     {r.description && (
