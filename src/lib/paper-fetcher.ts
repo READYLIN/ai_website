@@ -243,7 +243,7 @@ const fetchWithCache = withTtlCache<Paper[]>(async () => {
   return deduplicated.sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
-}, 5000);
+}, 300000);  // 5 min cache — papers update slowly
 
 /**
  * Main entry point: merge stored (historical) papers with live-fetched ones.

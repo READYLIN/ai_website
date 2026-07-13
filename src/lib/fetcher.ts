@@ -118,7 +118,7 @@ const fetchWithCache = withTtlCache<Article[]>(async () => {
     .flatMap((r) => r.value);
 
   return sortByDate(dedupeByTitleAndUrl(articles, (a) => a.titleZh || a.title));
-}, 5000);
+}, 60000);  // 60s cache — reduces live RSS load
 
 /**
  * Main entry point: merge stored (historical) articles with live-fetched ones.
