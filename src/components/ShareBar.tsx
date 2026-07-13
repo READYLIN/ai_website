@@ -30,7 +30,7 @@ export default function ShareBar({ url, title }: { url: string; title: string })
         微信分享
       </button>
       <span className="text-[10px] text-light-muted/70 ml-1 hidden sm:inline">
-        点击"微信分享"复制链接，打开微信粘贴发送
+        点击&ldquo;微信分享&rdquo;复制链接，打开微信粘贴发送
       </span>
     </div>
   );
