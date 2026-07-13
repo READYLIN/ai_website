@@ -8,6 +8,7 @@ import SanitizedHTML from '@/components/SanitizedHTML';
 import BookmarkButton from '@/components/BookmarkButton';
 import { articleDisplayCopy } from '@/lib/display-text';
 import RelatedArticles from '@/components/RelatedArticles';
+import BreadcrumbNav from '@/components/BreadcrumbNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,10 @@ export default async function ArticlePage({
 
   return (
     <div className="container-site max-w-3xl py-8 sm:py-12">
+      <BreadcrumbNav items={[
+        { href: '/', label: 'AI资讯' },
+        { href: `/${(article.categories || ['未分类'])[0]}`, label: (article.categories || ['文章'])[0] },
+      ]} />
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm text-light-muted dark:text-dark-muted hover:text-accent dark:hover:text-accent-dark transition-colors mb-8 group"
