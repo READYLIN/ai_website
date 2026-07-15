@@ -80,16 +80,14 @@ export async function resolveButtondownTagId(tagName: string): Promise<string | 
   if (!apiKey) return null;
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${API_ROOT}/tags?page_size=100`, {
+    const tagPromise = fetch(`${API_ROOT}/tags?page_size=100`, {
       headers: headers(apiKey),
       cache: 'no-store',
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!response.ok) return null;
-    const data = await response.json() as { results?: { id: string; name: string }[] };
+    }).then(r => r.json()) as Promise<{ results?: { id: string; name: string }[] }>;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Buttondown tag lookup timeout')), 5000)
+    );
+    const data = await Promise.race([tagPromise, timeoutPromise]);
     return data.results?.find((tag) => tag.name === tagName)?.id || null;
   } catch (error) {
     console.error('[buttondown] Failed to resolve tag:', error);
