@@ -35,16 +35,13 @@ async function sendTopicDigest(
   }
 
   const publishDate = scheduledTime(offsetMinutes);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  const response = await fetch('https://api.buttondown.com/v1/emails', {
+  const emailPromise = fetch('https://api.buttondown.com/v1/emails', {
     method: 'POST',
     headers: {
       Authorization: `Token ${apiKey}`,
       'Content-Type': 'application/json',
       'X-Buttondown-Live-Dangerously': 'true',
     },
-    signal: controller.signal,
     body: JSON.stringify({
       subject: digest.subject,
       body: digest.body,
@@ -63,7 +60,10 @@ async function sendTopicDigest(
       metadata: { newsletter_topic: topic },
     }),
   });
-  clearTimeout(timer);
+  const timeoutPromise = new Promise<Response>((_, reject) =>
+    setTimeout(() => reject(new Error('Buttondown API timeout')), 10000)
+  );
+  const response = await Promise.race([emailPromise, timeoutPromise]);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
