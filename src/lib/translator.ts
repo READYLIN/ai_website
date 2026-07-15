@@ -40,7 +40,7 @@ function cleanHtml(html: string): string {
   return processed;
 }
 
-export async function translateToChinese(text: string, timeoutMs = 5000): Promise<string> {
+export async function translateToChinese(text: string, timeoutMs = 3000): Promise<string> {
   if (!text || text.trim().length === 0) return '';
 
   const key = cacheKey(text);

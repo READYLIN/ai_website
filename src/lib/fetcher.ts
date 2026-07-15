@@ -3,7 +3,7 @@ import { Article } from './types';
 import { rssSources, DEFAULT_REVALIDATE, normalizeCategories } from './rss-sources';
 import { translateArticle } from './translator';
 import { scrapeArticleContent, decodeHtmlEntities } from './scraper';
-import { makeId, normalizeTitle, normalizeUrl, dedupeByTitleAndUrl, sortByDate, withTtlCache } from './feed-utils';
+import { makeId, dedupeByTitleAndUrl, sortByDate, withTtlCache } from './feed-utils';
 import { getStoredArticles, saveArticles } from './storage';
 
 const parser = new Parser({
@@ -12,6 +12,31 @@ const parser = new Parser({
     'User-Agent': 'AI News Hub/1.0',
   },
 });
+
+// ─── Concurrency limiter ────────────────────────────────────────
+
+async function pLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const results: (R | undefined)[] = new Array(items.length);
+  const indices = items.map((_, i) => i);
+  let active = 0;
+
+  async function run() {
+    while (indices.length > 0 && active < limit) {
+      const i = indices.shift()!;
+      active++;
+      try {
+        results[i] = await fn(items[i], i);
+      } catch {
+        // skip failed items
+      } finally {
+        active--;
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results.filter((r): r is R => r !== undefined);
+}
 
 function extractImage(item: Record<string, unknown>): string | undefined {
   const enclosure = item.enclosure as { url?: string } | undefined;
@@ -43,65 +68,63 @@ async function fetchSingleSource(source: (typeof rssSources)[0]): Promise<Articl
     const feed = await parser.parseURL(source.url);
     const items = (feed.items || []).slice(0, 15);
 
-    const articles = await Promise.all(
-      items.map(async (item) => {
-        const rawTitle = item.title || 'Untitled';
-        // Strip HTML tags from title — some RSS feeds embed full HTML docs
-        const title = decodeHtmlEntities(rawTitle.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
-        const rssDescription = item.contentSnippet
-          ? item.contentSnippet.slice(0, 300)
-          : item.content
-            ? decodeHtmlEntities(item.content.replace(/<[^>]+>/g, '')).slice(0, 300)
-            : '';
-        const rssContent = item['content:encoded'] || item.content || '';
+    const articles: Article[] = await pLimit(items, 3, async (item) => {
+      const rawTitle = item.title || 'Untitled';
+      // Strip HTML tags from title — some RSS feeds embed full HTML docs
+      const title = decodeHtmlEntities(rawTitle.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
+      const rssDescription = item.contentSnippet
+        ? item.contentSnippet.slice(0, 300)
+        : item.content
+          ? decodeHtmlEntities(item.content.replace(/<[^>]+>/g, '')).slice(0, 300)
+          : '';
+      const rssContent = item['content:encoded'] || item.content || '';
 
-        const guid = item.guid || item.link || title + source.name;
-        const id = makeId(guid);
+      const guid = item.guid || item.link || title + source.name;
+      const id = makeId(guid);
 
-        let finalDescription = rssDescription;
-        let finalContent = rssContent;
-        let finalImageUrl = extractImage(item as Record<string, unknown>);
+      let finalDescription = rssDescription;
+      let finalContent = rssContent;
+      let finalImageUrl = extractImage(item as Record<string, unknown>);
 
-        if (rssDescription.length < 80 && item.link) {
-          try {
-            const scraped = await scrapeArticleContent(item.link);
-            if (scraped.content && scraped.content.replace(/<[^>]+>/g, '').trim().length > 100) {
-              finalContent = scraped.content;
-              finalDescription = scraped.content.replace(/<[^>]+>/g, '').slice(0, 300);
-            }
-          } catch {
-            // keep RSS content as fallback
-          }
-        }
-
-        let translation;
+      if (rssDescription.length < 80 && item.link) {
         try {
-          translation = source.category === 'english'
-            ? await translateArticle({ title, description: finalDescription, content: finalContent })
-            : { titleZh: title, descriptionZh: finalDescription, contentZh: finalContent };
-        } catch (err) {
-          console.error(`Translation failed for "${title}" from ${source.name}:`, err);
-          translation = { titleZh: title, descriptionZh: finalDescription, contentZh: finalContent };
+          const scraped = await scrapeArticleContent(item.link);
+          if (scraped.content && scraped.content.replace(/<[^>]+>/g, '').trim().length > 100) {
+            finalContent = scraped.content;
+            finalDescription = scraped.content.replace(/<[^>]+>/g, '').slice(0, 300);
+          }
+        } catch {
+          // keep RSS content as fallback
         }
+      }
 
-        return {
-          id,
-          title,
-          titleZh: translation.titleZh,
-          description: finalDescription,
-          descriptionZh: translation.descriptionZh,
-          content: finalContent,
-          contentZh: translation.contentZh,
-          url: item.link || '',
-          imageUrl: finalImageUrl,
-          source: source.name,
-          sourceIcon: source.icon,
-          categories: normalizeCategories(item.categories || []),
-          publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
-          author: item.creator || item.author || source.name,
-        };
-      })
-    );
+      let translation;
+      try {
+        translation = source.category === 'english'
+          ? await translateArticle({ title, description: finalDescription, content: finalContent })
+          : { titleZh: title, descriptionZh: finalDescription, contentZh: finalContent };
+      } catch (err) {
+        console.error(`Translation failed for "${title}" from ${source.name}:`, err);
+        translation = { titleZh: title, descriptionZh: finalDescription, contentZh: finalContent };
+      }
+
+      return {
+        id,
+        title,
+        titleZh: translation.titleZh,
+        description: finalDescription,
+        descriptionZh: translation.descriptionZh,
+        content: finalContent,
+        contentZh: translation.contentZh,
+        url: item.link || '',
+        imageUrl: finalImageUrl,
+        source: source.name,
+        sourceIcon: source.icon,
+        categories: normalizeCategories(item.categories || []),
+        publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
+        author: item.creator || item.author || source.name,
+      };
+    });
 
     return articles;
   } catch (error) {
@@ -127,42 +150,20 @@ const fetchWithCache = withTtlCache<Article[]>(async () => {
  * Automatically saves new live articles to storage.
  */
 export async function fetchAllArticles(): Promise<Article[]> {
-  // 1. Read stored articles (June + July by default)
-  const storedPromise = getStoredArticles().catch(() => [] as Article[]);
-
-  // 2. Live fetch (with 5s TTL cache)
-  const livePromise = fetchWithCache();
-
-  const [stored, live] = await Promise.all([storedPromise, livePromise]);
-
-  // 3. Merge: stored serve as base, live articles de-dupe and add new ones
-  const merged = [...stored];
-  const seenIds = new Set(stored.map((a) => a.id));
-  const seenTitles = new Set(stored.map((a) => normalizeTitle(a.titleZh || a.title)));
-  const seenUrls = new Set(stored.map((a) => normalizeUrl(a.url)).filter(Boolean));
-
-  for (const article of live) {
-    const normTitle = normalizeTitle(article.titleZh || article.title);
-    const normUrl = normalizeUrl(article.url);
-
-    if (seenIds.has(article.id) || seenTitles.has(normTitle) || (article.url && seenUrls.has(normUrl))) {
-      continue;
-    }
-    seenIds.add(article.id);
-    seenTitles.add(normTitle);
-    if (article.url) seenUrls.add(normUrl);
-    merged.push(article);
+  const stored = await getStoredArticles().catch(() => [] as Article[]);
+  if (stored.length > 0) {
+    return stored.sort(
+      (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+    );
   }
 
-  // 4. Sort merged by date descending
-  merged.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-
-  // 5. Auto-save new articles in the background (don't block the response)
+  // Cloud storage is the normal read path. Live RSS is a graceful fallback for
+  // a fresh deployment before the first scheduled sync has populated Redis.
+  const live = await fetchWithCache();
   if (live.length > 0) {
     saveArticles(live).catch((err) => console.error('[fetcher] Background save failed:', err));
   }
-
-  return merged;
+  return live;
 }
 
 /**
