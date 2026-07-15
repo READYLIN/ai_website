@@ -55,11 +55,11 @@ export async function translateToChinese(text: string, timeoutMs = 5000): Promis
       return text;
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const result = await translate(cleanText, { to: 'zh-CN' }, { signal: controller.signal });
-    clearTimeout(timer);
-    const translated = result.text;
+    const translatePromise = translate(cleanText, { to: 'zh-CN' }).then(r => r.text);
+    const timeoutPromise = new Promise<string>((_, reject) =>
+      setTimeout(() => reject(new Error('Translation timeout')), timeoutMs)
+    );
+    const translated = await Promise.race([translatePromise, timeoutPromise]);
     translationCache.set(key, { zh: translated, timestamp: Date.now() });
     pruneCache();
     return translated;

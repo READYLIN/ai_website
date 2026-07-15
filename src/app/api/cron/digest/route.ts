@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchAllArticles } from '@/lib/fetcher';
+import type { Article } from '@/lib/types';
+import { getStoredArticles } from '@/lib/storage';
 import { fetchAllMediaIntel } from '@/lib/media-intel';
 import { fetchPEIntel } from '@/lib/pe-intel';
 import { buildDigest, buildIntelligenceDigest, filterLast24Hours } from '@/lib/digest';
@@ -80,15 +81,31 @@ async function handleDigest() {
   }
 
   try {
-    const [allAI, allMedia, allPrivateEquity] = await Promise.all([
-      fetchAllArticles(),
+    const [aiResult, mediaResult, peResult] = await Promise.allSettled([
+      getStoredArticles(),
       fetchAllMediaIntel(),
       fetchPEIntel(),
     ]);
 
-    const ai = filterLast24Hours(allAI);
-    const media = filterLast24Hours(allMedia);
-    const privateEquity = filterLast24Hours(allPrivateEquity);
+    if (aiResult.status === 'rejected') {
+      console.error('[digest] Failed to read articles from storage:', aiResult.reason);
+      return NextResponse.json({ error: 'Storage read failed' }, { status: 500 });
+    }
+    if (mediaResult.status === 'rejected') {
+      console.error('[digest] Failed to fetch media intel:', mediaResult.reason);
+    }
+    if (peResult.status === 'rejected') {
+      console.error('[digest] Failed to fetch PE intel:', peResult.reason);
+    }
+
+    const all = aiResult.value as Article[];
+    if (all.length === 0) {
+      return NextResponse.json({ message: 'No articles in storage; run /api/storage/sync first' });
+    }
+
+    const ai = filterLast24Hours(all);
+    const media = mediaResult.status === 'fulfilled' ? filterLast24Hours(mediaResult.value) : [];
+    const privateEquity = peResult.status === 'fulfilled' ? filterLast24Hours(peResult.value) : [];
 
     const jobs: Promise<unknown>[] = [];
     if (ai.length > 0) jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
