@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Article } from '@/lib/types';
-import { getStoredArticles } from '@/lib/storage';
+import { getStoredArticles, getRedisClient } from '@/lib/storage';
 import { fetchAllMediaIntel } from '@/lib/media-intel';
 import { fetchPEIntel } from '@/lib/pe-intel';
 import { buildDigest, buildIntelligenceDigest, filterLast24Hours } from '@/lib/digest';
 import { NEWSLETTER_TOPIC_META, NewsletterTopic } from '@/lib/newsletter';
-import { resolveButtondownTagId } from '@/lib/buttondown';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -20,79 +19,20 @@ function scheduledTime(offsetMinutes: number): Date {
   return now;
 }
 
-async function sendTopicDigest(
-  topic: NewsletterTopic,
-  digest: { subject: string; body: string },
-  offsetMinutes: number,
-) {
-  const apiKey = process.env.BUTTONDOWN_API_KEY;
-  if (!apiKey) throw new Error('BUTTONDOWN_API_KEY not configured');
-
-  const tagName = NEWSLETTER_TOPIC_META[topic].tag;
-  const tagId = await Promise.race([
-    resolveButtondownTagId(tagName),
-    new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('Tag lookup timeout')), 5000)
-    ),
-  ]).catch(() => null);
-
-  if (!tagId) {
-    return { topic, skipped: true, reason: `No tag found for ${tagName}` };
-  }
-
-  const publishDate = scheduledTime(offsetMinutes);
-  const body = JSON.stringify({
-    subject: digest.subject,
-    body: digest.body,
-    status: 'about_to_send',
-    email_type: 'public',
-    publish_date: publishDate.toISOString(),
-    filters: {
-      predicate: 'and',
-      filters: [{
-        field: 'subscriber.tags',
-        operator: 'contains',
-        value: tagId,
-      }],
-      groups: [],
-    },
-    metadata: { newsletter_topic: topic },
-  });
-
-  let response: Response | null = null;
+async function saveDraft(topic: NewsletterTopic, digest: { subject: string; body: string }) {
+  const redis = getRedisClient();
+  if (!redis) return { topic, saved: false, reason: 'no redis' };
   try {
-    response = await Promise.race([
-      fetch('https://api.buttondown.com/v1/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Token ${apiKey}`,
-          'Content-Type': 'application/json',
-          'X-Buttondown-Live-Dangerously': 'true',
-        },
-        body,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Email send timeout')), 15000)
-      ),
-    ]);
+    await redis.set(`digest:draft:${topic}`, JSON.stringify({
+      subject: digest.subject,
+      body: digest.body,
+      savedAt: new Date().toISOString(),
+    }));
+    return { topic, saved: true };
   } catch (err) {
-    console.error(`[digest] Buttondown API failed for ${topic}:`, (err as Error).message);
+    console.error(`[digest] Failed to save draft for ${topic}:`, err);
+    return { topic, saved: false, reason: (err as Error).message };
   }
-
-  if (!response || !response.ok) {
-    const errorDetail = response
-      ? await response.json().catch(() => ({ detail: response.statusText }))
-      : { detail: 'no response' };
-    return { topic, success: false, status: response?.status ?? 0, error: errorDetail };
-  }
-
-  const data = await response.json();
-  return {
-    topic,
-    success: true,
-    emailId: data.id,
-    scheduledFor: publishDate.toISOString(),
-  };
 }
 
 async function handleDigest() {
@@ -135,14 +75,17 @@ async function handleDigest() {
     const privateEquity = peResult.status === 'fulfilled' ? filterLast24Hours(peResult.value) : [];
 
     const jobs: Promise<unknown>[] = [];
-    if (ai.length > 0) jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
-    if (media.length > 0) jobs.push(sendTopicDigest('media', buildIntelligenceDigest('media', media), 5));
+    if (ai.length > 0) {
+      const digest = buildDigest(ai);
+      jobs.push(saveDraft('ai', digest));
+    }
+    if (media.length > 0) {
+      const digest = buildIntelligenceDigest('media', media);
+      jobs.push(saveDraft('media', digest));
+    }
     if (privateEquity.length > 0) {
-      jobs.push(sendTopicDigest(
-        'private-equity',
-        buildIntelligenceDigest('private-equity', privateEquity),
-        10,
-      ));
+      const digest = buildIntelligenceDigest('private-equity', privateEquity);
+      jobs.push(saveDraft('private-equity', digest));
     }
 
     if (jobs.length === 0) {
