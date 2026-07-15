@@ -1,9 +1,11 @@
 import { Redis } from '@upstash/redis';
-import { Article, Paper } from './types';
+import { createHash } from 'crypto';
+import { Article, IntelligenceChannel, IntelArticle, Paper, SubscriberRecord } from './types';
+import { NewsletterTopic } from './newsletter';
 
 // ─── Redis Client ─────────────────────────────────────────────
 
-function getRedisClient(): Redis | null {
+export function getRedisClient(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -13,6 +15,10 @@ function getRedisClient(): Redis | null {
   }
 
   return new Redis({ url, token });
+}
+
+export function isCloudStorageConfigured(): boolean {
+  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 }
 
 // ─── Month Helpers ────────────────────────────────────────────
@@ -87,30 +93,26 @@ export async function getStoredArticles(months?: string[]): Promise<Article[]> {
   const redis = getRedisClient();
   if (!redis) return [];
 
-  const targetMonths = months || getTargetMonths();
-  const articles: Article[] = [];
-
-  for (const month of targetMonths) {
-    const key = `articles:${month}`;
+  // Limit to current month only to reduce memory pressure on Vercel serverless
+  const targetMonths = months || [`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`];
+  const batches = await Promise.all(targetMonths.map(async (month) => {
     try {
-      const hash = await redis.hgetall<Record<string, unknown>>(key);
-      if (hash) {
-        for (const value of Object.values(hash)) {
-          try {
-            // @upstash/redis auto-deserializes JSON, so values are already objects
-            const article = (typeof value === 'string' ? JSON.parse(value) : value) as Article;
-            articles.push(article);
-          } catch {
-            // skip malformed entries
-          }
+      const hash = await redis.hgetall<Record<string, unknown>>(`articles:${month}`);
+      if (!hash) return [] as Article[];
+      return Object.values(hash).flatMap((value) => {
+        try {
+          return [(typeof value === 'string' ? JSON.parse(value) : value) as Article];
+        } catch {
+          return [];
         }
-      }
+      });
     } catch (err) {
       console.error(`[storage] Failed to read articles for ${month}:`, err);
+      return [] as Article[];
     }
-  }
+  }));
 
-  return articles;
+  return batches.flat();
 }
 
 // ─── Paper Storage ────────────────────────────────────────────
@@ -158,29 +160,137 @@ export async function getStoredPapers(months?: string[]): Promise<Paper[]> {
   if (!redis) return [];
 
   const targetMonths = months || getTargetMonths();
-  const papers: Paper[] = [];
-
-  for (const month of targetMonths) {
-    const key = `papers:${month}`;
+  const batches = await Promise.all(targetMonths.map(async (month) => {
     try {
-      const hash = await redis.hgetall<Record<string, unknown>>(key);
-      if (hash) {
-        for (const value of Object.values(hash)) {
-          try {
-            // @upstash/redis auto-deserializes JSON, so values are already objects
-            const paper = (typeof value === 'string' ? JSON.parse(value) : value) as Paper;
-            papers.push(paper);
-          } catch {
-            // skip malformed entries
-          }
+      const hash = await redis.hgetall<Record<string, unknown>>(`papers:${month}`);
+      if (!hash) return [] as Paper[];
+      return Object.values(hash).flatMap((value) => {
+        try {
+          return [(typeof value === 'string' ? JSON.parse(value) : value) as Paper];
+        } catch {
+          return [];
         }
-      }
+      });
     } catch (err) {
       console.error(`[storage] Failed to read papers for ${month}:`, err);
+      return [] as Paper[];
+    }
+  }));
+
+  return batches.flat();
+}
+
+// ─── Structured intelligence storage ─────────────────────────
+
+export async function saveIntelligence(
+  channel: IntelligenceChannel,
+  articles: IntelArticle[],
+): Promise<number> {
+  const redis = getRedisClient();
+  if (!redis || articles.length === 0) return 0;
+
+  const key = `intelligence:${channel}`;
+  let existingIds = new Set<string>();
+  try {
+    existingIds = new Set(await redis.hkeys(key));
+  } catch (err) {
+    console.error(`[storage] Failed to list existing ${channel} item IDs:`, err);
+  }
+  const savedCount = articles.filter(article => !existingIds.has(article.id)).length;
+
+  // Chunked HSET keeps the archive append-only while avoiding hundreds of
+  // sequential network round trips as the historical dataset grows.
+  for (let index = 0; index < articles.length; index += 100) {
+    const batch = articles.slice(index, index + 100);
+    try {
+      await redis.hset(key, Object.fromEntries(
+        batch.map(article => [article.id, JSON.stringify(article)]),
+      ));
+    } catch (err) {
+      console.error(`[storage] Failed to save ${channel} intelligence batch:`, err);
+      throw err;
     }
   }
 
-  return papers;
+  await redis.hset('meta:intelligence', {
+    [channel]: JSON.stringify({
+      count: await redis.hlen(key),
+      syncedAt: new Date().toISOString(),
+    }),
+  }).catch((err) => console.error('[storage] Failed to update intelligence metadata:', err));
+
+  return savedCount;
+}
+
+export async function getStoredIntelligence(channel: IntelligenceChannel): Promise<IntelArticle[]> {
+  const redis = getRedisClient();
+  if (!redis) return [];
+
+  try {
+    const hash = await redis.hgetall<Record<string, unknown>>(`intelligence:${channel}`);
+    if (!hash) return [];
+
+    return Object.values(hash).flatMap((value) => {
+      try {
+        return [(typeof value === 'string' ? JSON.parse(value) : value) as IntelArticle];
+      } catch {
+        return [];
+      }
+    });
+  } catch (err) {
+    console.error(`[storage] Failed to read ${channel} intelligence:`, err);
+    return [];
+  }
+}
+
+// ─── Newsletter subscriber storage ───────────────────────────
+
+function subscriberKey(email: string): string {
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+}
+
+export async function upsertSubscriber(
+  email: string,
+  topics: NewsletterTopic[],
+  status: SubscriberRecord['status'],
+  source = 'website',
+): Promise<boolean> {
+  const redis = getRedisClient();
+  if (!redis) return false;
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const key = subscriberKey(normalizedEmail);
+  const now = new Date().toISOString();
+  let createdAt = now;
+
+  try {
+    const existing = await redis.hget<SubscriberRecord>('newsletter:subscribers', key);
+    if (existing?.createdAt) createdAt = existing.createdAt;
+
+    const record: SubscriberRecord = {
+      email: normalizedEmail,
+      topics,
+      status,
+      source,
+      createdAt,
+      updatedAt: now,
+    };
+
+    await redis.hset('newsletter:subscribers', { [key]: JSON.stringify(record) });
+    for (const previousTopic of existing?.topics || []) {
+      if (!topics.includes(previousTopic)) {
+        await redis.srem(`newsletter:topic:${previousTopic}`, key);
+      }
+    }
+    for (const topic of topics) {
+      await redis.sadd(`newsletter:topic:${topic}`, key);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[storage] Failed to save newsletter subscriber:', err);
+    return false;
+  }
 }
 
 // ─── Month Index ──────────────────────────────────────────────
@@ -204,9 +314,16 @@ export async function getAvailableMonths(type: 'articles' | 'papers'): Promise<s
 export async function getStorageStats(): Promise<{
   articles: { month: string; count: number }[];
   papers: { month: string; count: number }[];
+  intelligence: Record<IntelligenceChannel, number>;
+  subscribers: number;
 }> {
   const redis = getRedisClient();
-  if (!redis) return { articles: [], papers: [] };
+  if (!redis) return {
+    articles: [],
+    papers: [],
+    intelligence: { media: 0, 'private-equity': 0 },
+    subscribers: 0,
+  };
 
   try {
     const articleMonths = await getAvailableMonths('articles');
@@ -226,9 +343,25 @@ export async function getStorageStats(): Promise<{
       }))
     );
 
-    return { articles: articleStats, papers: paperStats };
+    const [media, privateEquity, subscribers] = await Promise.all([
+      redis.hlen('intelligence:media'),
+      redis.hlen('intelligence:private-equity'),
+      redis.hlen('newsletter:subscribers'),
+    ]);
+
+    return {
+      articles: articleStats,
+      papers: paperStats,
+      intelligence: { media, 'private-equity': privateEquity },
+      subscribers,
+    };
   } catch (err) {
     console.error('[storage] Failed to get stats:', err);
-    return { articles: [], papers: [] };
+    return {
+      articles: [],
+      papers: [],
+      intelligence: { media: 0, 'private-equity': 0 },
+      subscribers: 0,
+    };
   }
 }
