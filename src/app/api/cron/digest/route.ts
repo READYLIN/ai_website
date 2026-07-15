@@ -99,6 +99,7 @@ async function handleDigest() {
     }
 
     const all = aiResult.value as Article[];
+    console.log('[digest] Total articles in storage:', all.length);
     if (all.length === 0) {
       return NextResponse.json({ message: 'No articles in storage; run /api/storage/sync first' });
     }
