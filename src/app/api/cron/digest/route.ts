@@ -29,45 +29,61 @@ async function sendTopicDigest(
   if (!apiKey) throw new Error('BUTTONDOWN_API_KEY not configured');
 
   const tagName = NEWSLETTER_TOPIC_META[topic].tag;
-  const tagId = await resolveButtondownTagId(tagName);
+  const tagId = await Promise.race([
+    resolveButtondownTagId(tagName),
+    new Promise<null>((_, reject) =>
+      setTimeout(() => reject(new Error('Tag lookup timeout')), 5000)
+    ),
+  ]).catch(() => null);
+
   if (!tagId) {
-    return { topic, skipped: true, reason: `No Buttondown tag found for ${tagName}` };
+    return { topic, skipped: true, reason: `No tag found for ${tagName}` };
   }
 
   const publishDate = scheduledTime(offsetMinutes);
-  const emailPromise = fetch('https://api.buttondown.com/v1/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${apiKey}`,
-      'Content-Type': 'application/json',
-      'X-Buttondown-Live-Dangerously': 'true',
+  const body = JSON.stringify({
+    subject: digest.subject,
+    body: digest.body,
+    status: 'about_to_send',
+    email_type: 'public',
+    publish_date: publishDate.toISOString(),
+    filters: {
+      predicate: 'and',
+      filters: [{
+        field: 'subscriber.tags',
+        operator: 'contains',
+        value: tagId,
+      }],
+      groups: [],
     },
-    body: JSON.stringify({
-      subject: digest.subject,
-      body: digest.body,
-      status: 'about_to_send',
-      email_type: 'public',
-      publish_date: publishDate.toISOString(),
-      filters: {
-        predicate: 'and',
-        filters: [{
-          field: 'subscriber.tags',
-          operator: 'contains',
-          value: tagId,
-        }],
-        groups: [],
-      },
-      metadata: { newsletter_topic: topic },
-    }),
+    metadata: { newsletter_topic: topic },
   });
-  const timeoutPromise = new Promise<Response>((_, reject) =>
-    setTimeout(() => reject(new Error('Buttondown API timeout')), 10000)
-  );
-  const response = await Promise.race([emailPromise, timeoutPromise]);
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    return { topic, success: false, status: response.status, error };
+  let response: Response | null = null;
+  try {
+    response = await Promise.race([
+      fetch('https://api.buttondown.com/v1/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${apiKey}`,
+          'Content-Type': 'application/json',
+          'X-Buttondown-Live-Dangerously': 'true',
+        },
+        body,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Email send timeout')), 15000)
+      ),
+    ]);
+  } catch (err) {
+    console.error(`[digest] Buttondown API failed for ${topic}:`, (err as Error).message);
+  }
+
+  if (!response || !response.ok) {
+    const errorDetail = response
+      ? await response.json().catch(() => ({ detail: response.statusText }))
+      : { detail: 'no response' };
+    return { topic, success: false, status: response?.status ?? 0, error: errorDetail };
   }
 
   const data = await response.json();
@@ -103,7 +119,6 @@ async function handleDigest() {
     }
 
     const all = aiResult.value as Article[];
-    console.log('[digest] Total articles in storage:', all.length);
     if (all.length === 0) {
       return NextResponse.json({ message: 'No articles in storage; run /api/storage/sync first' });
     }
@@ -116,25 +131,18 @@ async function handleDigest() {
     }));
 
     const ai = filterLast24Hours(lightArticles);
-    console.log('[digest] AI articles (last 24h):', ai.length);
     const media = mediaResult.status === 'fulfilled' ? filterLast24Hours(mediaResult.value) : [];
-    console.log('[digest] Media articles (last 24h):', media.length);
     const privateEquity = peResult.status === 'fulfilled' ? filterLast24Hours(peResult.value) : [];
-    console.log('[digest] PE articles (last 24h):', privateEquity.length);
 
     const jobs: Promise<unknown>[] = [];
-    console.log('[digest] Jobs to send:', jobs.length);
-    if (ai.length > 0) {
-      console.log('[digest] Skipping AI email send (testing)');
-      jobs.push(Promise.resolve({ topic: 'ai', skipped: true, reason: 'testing mode' }));
-    }
-    if (media.length > 0) {
-      console.log('[digest] Skipping media email send (testing)');
-      jobs.push(Promise.resolve({ topic: 'media', skipped: true, reason: 'testing mode' }));
-    }
+    if (ai.length > 0) jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
+    if (media.length > 0) jobs.push(sendTopicDigest('media', buildIntelligenceDigest('media', media), 5));
     if (privateEquity.length > 0) {
-      console.log('[digest] Skipping PE email send (testing)');
-      jobs.push(Promise.resolve({ topic: 'private-equity', skipped: true, reason: 'testing mode' }));
+      jobs.push(sendTopicDigest(
+        'private-equity',
+        buildIntelligenceDigest('private-equity', privateEquity),
+        10,
+      ));
     }
 
     if (jobs.length === 0) {
