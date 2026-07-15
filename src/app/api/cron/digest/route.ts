@@ -125,21 +125,15 @@ async function handleDigest() {
     const jobs: Promise<unknown>[] = [];
     console.log('[digest] Jobs to send:', jobs.length);
     if (ai.length > 0) {
-      console.log('[digest] Building AI digest...');
-      const digest = buildDigest(ai);
-      console.log('[digest] AI digest built, subject:', digest.subject);
-      jobs.push(sendTopicDigest('ai', digest, 0));
+      console.log('[digest] Skipping AI email send (testing)');
+      jobs.push(Promise.resolve({ topic: 'ai', skipped: true, reason: 'testing mode' }));
     }
     if (media.length > 0) {
-      console.log('[digest] Building media digest...');
-      const digest = buildIntelligenceDigest('media', media);
-      console.log('[digest] Media digest built, subject:', digest.subject);
-      jobs.push(sendTopicDigest('media', digest, 5));
+      console.log('[digest] Skipping media email send (testing)');
+      jobs.push(Promise.resolve({ topic: 'media', skipped: true, reason: 'testing mode' }));
     }
     if (privateEquity.length > 0) {
-      console.log('[digest] Building PE digest...');
-      const digest = buildIntelligenceDigest('private-equity', privateEquity);
-      console.log('[digest] PE digest built, subject:', digest.subject);
+      console.log('[digest] Skipping PE email send (testing)');
       jobs.push(sendTopicDigest(
         'private-equity',
         buildIntelligenceDigest('private-equity', privateEquity),
