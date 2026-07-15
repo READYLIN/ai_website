@@ -126,14 +126,20 @@ async function handleDigest() {
     console.log('[digest] Jobs to send:', jobs.length);
     if (ai.length > 0) {
       console.log('[digest] Building AI digest...');
-      jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
+      const digest = buildDigest(ai);
+      console.log('[digest] AI digest built, subject:', digest.subject);
+      jobs.push(sendTopicDigest('ai', digest, 0));
     }
     if (media.length > 0) {
       console.log('[digest] Building media digest...');
-      jobs.push(sendTopicDigest('media', buildIntelligenceDigest('media', media), 5));
+      const digest = buildIntelligenceDigest('media', media);
+      console.log('[digest] Media digest built, subject:', digest.subject);
+      jobs.push(sendTopicDigest('media', digest, 5));
     }
     if (privateEquity.length > 0) {
       console.log('[digest] Building PE digest...');
+      const digest = buildIntelligenceDigest('private-equity', privateEquity);
+      console.log('[digest] PE digest built, subject:', digest.subject);
       jobs.push(sendTopicDigest(
         'private-equity',
         buildIntelligenceDigest('private-equity', privateEquity),
