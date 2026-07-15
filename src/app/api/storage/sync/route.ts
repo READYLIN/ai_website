@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchLiveArticles } from '@/lib/fetcher';
 import { fetchLivePapers } from '@/lib/paper-fetcher';
 import { fetchMediaArticles } from '@/lib/media-fetcher';
 import { fetchAllMediaIntel } from '@/lib/media-intel';
@@ -7,7 +8,9 @@ import { fetchLivePEIntel } from '@/lib/pe-fetcher';
 import {
   getStoredIntelligence,
   getStorageStats,
+  saveArticles,
   saveIntelligence,
+  savePapers,
 } from '@/lib/storage';
 import { IntelArticle } from '@/lib/types';
 import { qualityIssues, sanitizeAndDedupeIntelligence } from '@/lib/intelligence-rules';
@@ -34,6 +37,7 @@ async function handleSync(request: NextRequest) {
       : {};
 
     const [
+      articlesResult,
       papersResult,
       mediaStructuredResult,
       mediaLiveResult,
@@ -42,6 +46,7 @@ async function handleSync(request: NextRequest) {
       storedMediaResult,
       storedPeResult,
     ] = await Promise.allSettled([
+      fetchLiveArticles(),
       fetchLivePapers(),
       fetchAllMediaIntel(),
       fetchMediaArticles(),
@@ -51,6 +56,10 @@ async function handleSync(request: NextRequest) {
       getStoredIntelligence('private-equity'),
     ]);
 
+    const articles = articlesResult.status === 'fulfilled' ? articlesResult.value : [];
+    if (articlesResult.status === 'rejected') {
+      console.error('[sync] Failed to fetch articles:', articlesResult.reason);
+    }
     if (papersResult.status === 'rejected') {
       console.error('[sync] Failed to fetch papers:', papersResult.reason);
     }
@@ -77,7 +86,9 @@ async function handleSync(request: NextRequest) {
       throw new Error(`Quality gate failed: media=${mediaIssues.slice(0, 3).join(', ')}; private-equity=${privateEquityIssues.slice(0, 3).join(', ')}`);
     }
 
-    const [mediaSaved, peSaved] = await Promise.all([
+    const [articleSaved, paperSaved, mediaSaved, peSaved] = await Promise.all([
+      saveArticles(articles),
+      savePapers(papersResult.status === 'fulfilled' ? papersResult.value : []),
       saveIntelligence('media', media),
       saveIntelligence('private-equity', privateEquity),
     ]);
@@ -88,15 +99,18 @@ async function handleSync(request: NextRequest) {
       success: true,
       syncedAt: new Date().toISOString(),
       fetched: {
+        articles: articles.length,
         papers: papersResult.status === 'fulfilled' ? papersResult.value.length : 0,
         media: media.length,
         privateEquity: privateEquity.length,
       },
       retainedFromStorage: {
-        media: storedMedia.length,
-        privateEquity: storedPrivateEquity.length,
+        media: storedMediaResult.status === 'fulfilled' ? storedMediaResult.value.length : 0,
+        privateEquity: storedPeResult.status === 'fulfilled' ? storedPeResult.value.length : 0,
       },
       saved: {
+        articles: articleSaved,
+        papers: paperSaved,
         media: mediaSaved,
         privateEquity: peSaved,
       },
