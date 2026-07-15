@@ -105,13 +105,24 @@ async function handleDigest() {
     }
 
     const ai = filterLast24Hours(all);
+    console.log('[digest] AI articles (last 24h):', ai.length);
     const media = mediaResult.status === 'fulfilled' ? filterLast24Hours(mediaResult.value) : [];
+    console.log('[digest] Media articles (last 24h):', media.length);
     const privateEquity = peResult.status === 'fulfilled' ? filterLast24Hours(peResult.value) : [];
+    console.log('[digest] PE articles (last 24h):', privateEquity.length);
 
     const jobs: Promise<unknown>[] = [];
-    if (ai.length > 0) jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
-    if (media.length > 0) jobs.push(sendTopicDigest('media', buildIntelligenceDigest('media', media), 5));
+    console.log('[digest] Jobs to send:', jobs.length);
+    if (ai.length > 0) {
+      console.log('[digest] Building AI digest...');
+      jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
+    }
+    if (media.length > 0) {
+      console.log('[digest] Building media digest...');
+      jobs.push(sendTopicDigest('media', buildIntelligenceDigest('media', media), 5));
+    }
     if (privateEquity.length > 0) {
+      console.log('[digest] Building PE digest...');
       jobs.push(sendTopicDigest(
         'private-equity',
         buildIntelligenceDigest('private-equity', privateEquity),
