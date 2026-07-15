@@ -104,7 +104,14 @@ async function handleDigest() {
       return NextResponse.json({ message: 'No articles in storage; run /api/storage/sync first' });
     }
 
-    const ai = filterLast24Hours(all);
+    // Drop large fields before filtering to save memory
+    const lightArticles: Article[] = all.map(a => ({
+      ...a,
+      content: '',
+      contentZh: '',
+    }));
+
+    const ai = filterLast24Hours(lightArticles);
     console.log('[digest] AI articles (last 24h):', ai.length);
     const media = mediaResult.status === 'fulfilled' ? filterLast24Hours(mediaResult.value) : [];
     console.log('[digest] Media articles (last 24h):', media.length);
