@@ -40,7 +40,7 @@ function cleanHtml(html: string): string {
   return processed;
 }
 
-export async function translateToChinese(text: string): Promise<string> {
+export async function translateToChinese(text: string, timeoutMs = 5000): Promise<string> {
   if (!text || text.trim().length === 0) return '';
 
   const key = cacheKey(text);
@@ -55,7 +55,10 @@ export async function translateToChinese(text: string): Promise<string> {
       return text;
     }
 
-    const result = await translate(cleanText, { to: 'zh-CN' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const result = await translate(cleanText, { to: 'zh-CN' }, { signal: controller.signal });
+    clearTimeout(timer);
     const translated = result.text;
     translationCache.set(key, { zh: translated, timestamp: Date.now() });
     pruneCache();
@@ -110,11 +113,18 @@ export async function translateArticle(article: {
   descriptionZh: string;
   contentZh?: string;
 }> {
-  const [titleZh, descriptionZh, contentZh] = await Promise.all([
-    translateToChinese(article.title),
-    translateToChinese(article.description),
-    article.content ? translateHtmlContent(article.content) : Promise.resolve(undefined),
-  ]);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
 
-  return { titleZh, descriptionZh, contentZh };
+  try {
+    const [titleZh, descriptionZh, contentZh] = await Promise.all([
+      translateToChinese(article.title),
+      translateToChinese(article.description),
+      article.content ? translateHtmlContent(article.content) : Promise.resolve(undefined),
+    ]);
+
+    return { titleZh, descriptionZh, contentZh };
+  } finally {
+    clearTimeout(timer);
+  }
 }
