@@ -134,11 +134,7 @@ async function handleDigest() {
     }
     if (privateEquity.length > 0) {
       console.log('[digest] Skipping PE email send (testing)');
-      jobs.push(sendTopicDigest(
-        'private-equity',
-        buildIntelligenceDigest('private-equity', privateEquity),
-        10,
-      ));
+      jobs.push(Promise.resolve({ topic: 'private-equity', skipped: true, reason: 'testing mode' }));
     }
 
     if (jobs.length === 0) {
