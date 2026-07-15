@@ -2,8 +2,8 @@ name: Daily Digest Cron
 
 on:
   schedule:
-    # 每天北京时间 11:35 = UTC 3:35
-    - cron: '35 3 * * *'
+    # 每天北京时间 9:35 = UTC 1:35
+    - cron: '35 1 * * *'
   workflow_dispatch: # 手动触发
 
 jobs:

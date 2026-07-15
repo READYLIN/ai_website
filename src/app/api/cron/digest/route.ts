@@ -1,91 +1,136 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllArticles } from '@/lib/fetcher';
+import { fetchAllMediaIntel } from '@/lib/media-intel';
+import { fetchPEIntel } from '@/lib/pe-intel';
+import { buildDigest, buildIntelligenceDigest, filterLast24Hours } from '@/lib/digest';
+import { NEWSLETTER_TOPIC_META, NewsletterTopic } from '@/lib/newsletter';
+import { resolveButtondownTagId } from '@/lib/buttondown';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  return handleDigest();
+function isAuthorized(request: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  return Boolean(secret && request.headers.get('authorization') === `Bearer ${secret}`);
 }
 
-export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+function scheduledTime(offsetMinutes: number): Date {
+  const now = new Date();
+  return now;
+}
+
+async function sendTopicDigest(
+  topic: NewsletterTopic,
+  digest: { subject: string; body: string },
+  offsetMinutes: number,
+) {
+  const apiKey = process.env.BUTTONDOWN_API_KEY;
+  if (!apiKey) throw new Error('BUTTONDOWN_API_KEY not configured');
+
+  const tagName = NEWSLETTER_TOPIC_META[topic].tag;
+  const tagId = await resolveButtondownTagId(tagName);
+  if (!tagId) {
+    return { topic, skipped: true, reason: `No Buttondown tag found for ${tagName}` };
   }
-  return handleDigest();
+
+  const publishDate = scheduledTime(offsetMinutes);
+  const response = await fetch('https://api.buttondown.com/v1/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${apiKey}`,
+      'Content-Type': 'application/json',
+      'X-Buttondown-Live-Dangerously': 'true',
+    },
+    body: JSON.stringify({
+      subject: digest.subject,
+      body: digest.body,
+      status: 'about_to_send',
+      email_type: 'public',
+      publish_date: publishDate.toISOString(),
+      filters: {
+        predicate: 'and',
+        filters: [{
+          field: 'subscriber.tags',
+          operator: 'contains',
+          value: tagId,
+        }],
+        groups: [],
+      },
+      metadata: { newsletter_topic: topic },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    return { topic, success: false, status: response.status, error };
+  }
+
+  const data = await response.json();
+  return {
+    topic,
+    success: true,
+    emailId: data.id,
+    scheduledFor: publishDate.toISOString(),
+  };
 }
 
 async function handleDigest() {
-  const apiKey = process.env.BUTTONDOWN_API_KEY;
-  if (!apiKey) {
+  if (!process.env.BUTTONDOWN_API_KEY) {
     return NextResponse.json({ error: 'BUTTONDOWN_API_KEY not configured' }, { status: 500 });
   }
 
   try {
-    // Use fetchAllArticles() — historical articles will be filtered out by filterLast24Hours
-    const allArticles = await fetchAllArticles();
+    const [allAI, allMedia, allPrivateEquity] = await Promise.all([
+      fetchAllArticles(),
+      fetchAllMediaIntel(),
+      fetchPEIntel(),
+    ]);
 
-    if (allArticles.length === 0) {
-      return NextResponse.json({ message: 'No articles to send' });
+    const ai = filterLast24Hours(allAI);
+    const media = filterLast24Hours(allMedia);
+    const privateEquity = filterLast24Hours(allPrivateEquity);
+
+    const jobs: Promise<unknown>[] = [];
+    if (ai.length > 0) jobs.push(sendTopicDigest('ai', buildDigest(ai), 0));
+    if (media.length > 0) jobs.push(sendTopicDigest('media', buildIntelligenceDigest('media', media), 5));
+    if (privateEquity.length > 0) {
+      jobs.push(sendTopicDigest(
+        'private-equity',
+        buildIntelligenceDigest('private-equity', privateEquity),
+        10,
+      ));
     }
 
-    const { buildDigest, filterLast24Hours } = await import('@/lib/digest');
-    const todayArticles = filterLast24Hours(allArticles);
-
-    // If no articles in the last 24 hours, skip sending
-    if (todayArticles.length === 0) {
-      return NextResponse.json({ message: 'No new articles in the last 24 hours, skipping send' });
+    if (jobs.length === 0) {
+      return NextResponse.json({ message: 'No new content in the last 24 hours; nothing sent' });
     }
 
-    const { subject, body } = buildDigest(todayArticles);
-
-    // Schedule send at 11:40 Beijing time (UTC+8 → 3:40 UTC).
-    // Cron triggers at 11:35, giving ~5 min for fetch + translate + build.
-    const now = new Date();
-    const scheduledTime = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      3, 40, 0
+    const results = await Promise.all(jobs);
+    const failed = results.some((result) => (
+      typeof result === 'object' && result !== null && 'success' in result && result.success === false
     ));
-    // If cron runs after 3:50 UTC for any reason, don't schedule in the past
-    if (scheduledTime <= now) {
-      scheduledTime.setTime(now.getTime() + 60_000); // send in 1 minute fallback
-    }
 
-    const response = await fetch('https://api.buttondown.com/v1/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-        'Content-Type': 'application/json',
-        'X-Buttondown-Live-Dangerously': 'true',
-      },
-      // body is a full HTML document; Buttondown renders it as HTML.
-      // publish_date schedules the email for later delivery (ISO 8601 UTC).
-      body: JSON.stringify({
-        subject,
-        body,
-        status: 'about_to_send',
-        email_type: 'public',
-        publish_date: scheduledTime.toISOString(),
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Buttondown API error:', error);
-      return NextResponse.json({ error }, { status: response.status });
-    }
-
-    const data = await response.json();
-    return NextResponse.json({ success: true, emailId: data.id, scheduledFor: scheduledTime.toISOString() });
+    return NextResponse.json({
+      success: !failed,
+      content: { ai: ai.length, media: media.length, privateEquity: privateEquity.length },
+      deliveries: results,
+    }, { status: failed ? 502 : 200 });
   } catch (error) {
     console.error('Digest cron error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return handleDigest();
+}
+
+export async function POST(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return handleDigest();
 }
