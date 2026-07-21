@@ -329,6 +329,29 @@ export function sanitizeIntelligenceArticle(
     || article.id.startsWith('pe-live-');
 
   if (channel === 'media') {
+    // 非上市公司项由豆包/ RSS 检索管线预先打好了公司归属（companyGroup 为
+    // “豆包联网搜索” / “RSS 非上市公司检索”，或 categories 含 “非上市公司”）。
+    // 它们不在媒体实体注册表里，若走下面的实体解析会被整体丢弃。这里直接放行，
+    // 保留其公司归属，不再强求媒体行业实体分类。
+    const isNonListed = article.companyGroup === '豆包联网搜索'
+      || article.companyGroup === 'RSS 非上市公司检索'
+      || (article.categories || []).includes('非上市公司');
+    if (isNonListed && article.company) {
+      return {
+        ...article,
+        title,
+        description,
+        publishedAt,
+        url,
+        company: article.company,
+        companyGroup: article.companyGroup === 'RSS 非上市公司检索' ? '非上市公司' : (article.companyGroup || '非上市公司'),
+        categories: article.categories?.length ? article.categories : ['非上市公司', article.company],
+        dimension: article.dimension && article.dimension !== '待分类' ? article.dimension : '非上市公司情报',
+        matrixLabel: article.matrixLabel || '非上市公司情报',
+        priority: article.priority || 'P2',
+        credibility: article.credibility || '中高',
+      };
+    }
     const entity = isAutomatic ? matchedEntity : (declaredEntity || matchedEntity);
     if (!entity || !isMediaBusinessNews(text)) return null;
     const classification = classifyMedia(text);
