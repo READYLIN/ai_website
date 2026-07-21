@@ -25,10 +25,64 @@ function reportItemKey(item) {
   return `title:${title}`;
 }
 
+function isValidDate(str) {
+  if (!str) return false;
+  const d = new Date(str);
+  return !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2000;
+}
+
+function extractBestPublished(item, generatedAt) {
+  const url = String(item.url || '');
+  const title = String(item.title || '');
+
+  // URL patterns: eastmoney, cfi, cninfo, WordPress/generic
+  const urlMatch =
+    url.match(/\/a\/(\d{4})(\d{2})(\d{2})\d*\./) ||
+    url.match(/\/p(\d{4})(\d{2})(\d{2})\d*\./) ||
+    url.match(/\/finalpage\/(\d{4})-(\d{2})-(\d{2})\//) ||
+    url.match(/\/(\d{4})[\/-](\d{2})[\/-](\d{2})[\/-]/);
+  if (urlMatch) {
+    const d = new Date(`${urlMatch[1]}-${urlMatch[2]}-${urlMatch[3]}`);
+    if (!Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2000) return d.toISOString();
+  }
+
+  // Title patterns: exact date or quarterly report
+  const exact = title.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (exact) {
+    const d = new Date(`${exact[1]}-${exact[2]}-${exact[3]}`);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  const quarter = title.match(/(\d{4})年(一季报|半年报|三季报|年报)/);
+  if (quarter) {
+    const y = quarter[1];
+    const map = {
+      '一季报': `${y}-04-30`,
+      '半年报': `${y}-08-31`,
+      '三季报': `${y}-10-31`,
+      '年报': `${String(parseInt(y, 10) + 1)}-03-31`,
+    };
+    const d = new Date(map[quarter[2]]);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+
+  // Keep original published if it is valid and not the report generation timestamp
+  const published = item.published;
+  if (isValidDate(published)) {
+    const publishedTime = new Date(published).getTime();
+    const generatedAtTime = generatedAt ? new Date(generatedAt).getTime() : NaN;
+    if (Number.isNaN(generatedAtTime) || Math.abs(publishedTime - generatedAtTime) >= 1000) {
+      return new Date(published).toISOString();
+    }
+  }
+
+  return null;
+}
+
 function mergeReports(destination, source, historyPath) {
   const current = readJsonIfPresent(destination);
   const history = readJsonIfPresent(historyPath);
   const latest = JSON.parse(readFileSync(source, 'utf8'));
+  const generatedAt = latest.generatedAt || latest.generated_at || new Date().toISOString();
   const merged = new Map();
 
   // Latest rows overwrite matching historical rows, while unmatched historical
@@ -40,11 +94,17 @@ function mergeReports(destination, source, historyPath) {
     }
   }
 
-  const items = Array.from(merged.values()).sort((a, b) => {
-    const right = Date.parse(b.published || '') || 0;
-    const left = Date.parse(a.published || '') || 0;
-    return right - left;
-  });
+  const items = Array.from(merged.values())
+    .map((item) => {
+      const best = extractBestPublished(item, generatedAt);
+      if (best) return { ...item, published: best };
+      return item;
+    })
+    .sort((a, b) => {
+      const right = Date.parse(b.published || '') || 0;
+      const left = Date.parse(a.published || '') || 0;
+      return right - left;
+    });
   writeFileSync(destination, `${JSON.stringify({ ...latest, items }, null, 2)}\n`, 'utf8');
   return items.length;
 }

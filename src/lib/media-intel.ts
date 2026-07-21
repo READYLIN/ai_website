@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { IntelArticle } from './types';
 import path from 'path';
-import { sanitizeAndDedupeIntelligence } from './intelligence-rules';
+import { sanitizeAndDedupeIntelligence, extractBestPublishedAt } from './intelligence-rules';
 import { withTtlCache } from './feed-utils';
 import { getCachedMediaIntelligence } from './cached-storage';
 import { searchNonListedInArticles } from './non-listed-search';
@@ -67,21 +67,34 @@ export function fetchMediaIntelLocal(): IntelArticle[] {
     const data = JSON.parse(raw);
     const items: MediaDailyItem[] = data.items || [];
 
-    return items.map((item) => ({
-      id: hashId(item.url || item.title),
-      title: item.title || '',
-      description: item.summary || '',
-      url: item.url || '',
-      source: item.source || '',
-      categories: [item.company_group || '传媒', item.dimension || ''].filter(Boolean),
-      publishedAt: item.published || '',
-      author: item.company || '',
-      company: item.company || '',
-      companyGroup: item.company_group || '',
-      priority: item.priority || '',
-      dimension: item.dimension || '',
-      matrixLabel: item.matrix_label || '',
-    }));
+    const generatedAt = (data.generatedAt || data.generated_at) as string | undefined;
+
+    return items.map((item) => {
+      const bestPublishedAt = extractBestPublishedAt(
+        {
+          published: item.published,
+          url: item.url,
+          title: item.title,
+          generatedAt,
+        },
+        generatedAt,
+      );
+      return {
+        id: hashId(item.url || item.title),
+        title: item.title || '',
+        description: item.summary || '',
+        url: item.url || '',
+        source: item.source || '',
+        categories: [item.company_group || '传媒', item.dimension || ''].filter(Boolean),
+        publishedAt: bestPublishedAt || '',
+        author: item.company || '',
+        company: item.company || '',
+        companyGroup: item.company_group || '',
+        priority: item.priority || '',
+        dimension: item.dimension || '',
+        matrixLabel: item.matrix_label || '',
+      };
+    });
   } catch (err) {
     console.error('[media-intel] Failed to read daily report:', err);
     return [];
@@ -104,7 +117,7 @@ export function fetchMediaWeeklySources(): IntelArticle[] {
       url: s.url || '',
       source: '',
       categories: ['传媒周报'],
-      publishedAt: new Date().toISOString(),
+      publishedAt: extractBestPublishedAt({ url: s.url, title: s.title }) || '',
       author: '',
     }));
   } catch (err) {

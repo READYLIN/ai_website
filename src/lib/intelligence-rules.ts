@@ -148,6 +148,88 @@ export function normalizePublishedAt(value: string | undefined): string | null {
   return date.toISOString();
 }
 
+function extractDateFromUrl(url: string): string | null {
+  if (!url) return null;
+  const patterns = [
+    { regex: /\/a\/(\d{4})(\d{2})(\d{2})\d*\./, groups: [1, 2, 3] },        // eastmoney
+    { regex: /\/p(\d{4})(\d{2})(\d{2})\d*\./, groups: [1, 2, 3] },          // cfi
+    { regex: /\/finalpage\/(\d{4})-(\d{2})-(\d{2})\//, groups: [1, 2, 3] }, // cninfo
+    { regex: /\/(\d{4})[\/-](\d{2})[\/-](\d{2})[\/-]/, groups: [1, 2, 3] }, // WordPress/generic
+  ];
+  for (const { regex, groups } of patterns) {
+    const match = url.match(regex);
+    if (match) {
+      const date = normalizePublishedAt(
+        `${match[groups[0]]}-${match[groups[1]]}-${match[groups[2]]}`,
+      );
+      if (date) return date;
+    }
+  }
+  return null;
+}
+
+function extractDateFromTitle(title: string): string | null {
+  if (!title) return null;
+  const exact = title.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (exact) {
+    const date = normalizePublishedAt(`${exact[1]}-${exact[2]}-${exact[3]}`);
+    if (date) return date;
+  }
+  const quarter = title.match(/(\d{4})年(一季报|半年报|三季报|年报)/);
+  if (quarter) {
+    const year = quarter[1];
+    const report = quarter[2];
+    const deadline: Record<string, string> = {
+      '一季报': `${year}-04-30`,
+      '半年报': `${year}-08-31`,
+      '三季报': `${year}-10-31`,
+      '年报': `${String(parseInt(year, 10) + 1)}-03-31`,
+    };
+    const date = normalizePublishedAt(deadline[report]);
+    if (date) return date;
+  }
+  return null;
+}
+
+export function extractBestPublishedAt(
+  item: {
+    published?: string | null;
+    url?: string | null;
+    title?: string | null;
+    generatedAt?: string | null;
+  },
+  nowHint?: string,
+): string | null {
+  const urlDate = extractDateFromUrl(item.url || '');
+  const titleDate = extractDateFromTitle(item.title || '');
+  const publishedNormalized = item.published ? normalizePublishedAt(item.published) : null;
+
+  const generatedAtTime = item.generatedAt ? new Date(item.generatedAt).getTime() : NaN;
+  const nowTime = nowHint ? new Date(nowHint).getTime() : Date.now();
+
+  if (publishedNormalized) {
+    const publishedTime = new Date(publishedNormalized).getTime();
+    const isGenerationTime =
+      !Number.isNaN(generatedAtTime) && Math.abs(publishedTime - generatedAtTime) < 1000;
+    const isVeryRecent = Math.abs(publishedTime - nowTime) < 3600_000;
+
+    if (!isGenerationTime && !isVeryRecent) {
+      return publishedNormalized;
+    }
+
+    // published is likely the report generation time (or an extremely recent default).
+    // Prefer URL/title because they are intrinsic to the source.
+    if (urlDate) return urlDate;
+    if (titleDate) return titleDate;
+
+    // If it is not exactly generation time, keep it as a last resort.
+    if (!isGenerationTime) return publishedNormalized;
+    return null;
+  }
+
+  return urlDate || titleDate || null;
+}
+
 export function classifyMedia(text: string): { priority: string; dimension: string; matrixLabel: string } | null {
   const rule = MEDIA_RULES.find(candidate => candidate.words.some(word => text.toLocaleLowerCase('zh-CN').includes(word.toLocaleLowerCase('zh-CN'))));
   return rule ? { priority: rule.priority, dimension: rule.dimension, matrixLabel: rule.dimension } : null;

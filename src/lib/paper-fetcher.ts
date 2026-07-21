@@ -1,6 +1,7 @@
 import { Paper } from './types';
 import { arxivCategories } from './paper-sources';
 import { withTtlCache } from './feed-utils';
+import { normalizePublishedAt } from './intelligence-rules';
 import { savePapers } from './storage';
 import { getCachedPaperById, getCachedPapers } from './cached-storage';
 
@@ -43,7 +44,7 @@ function parseArxivXml(xml: string): Paper[] {
         authors,
         abstract: (summaryMatch?.[1] || '').replace(/\s+/g, ' ').trim(),
         categories,
-        publishedAt: publishedMatch?.[1] || new Date().toISOString(),
+        publishedAt: publishedMatch?.[1] || '',
         pdfUrl: `https://arxiv.org/pdf/${arxivId}`,
         arxivUrl: `https://arxiv.org/abs/${arxivId}`,
         source: 'arxiv',
@@ -145,7 +146,7 @@ async function fetchFromOpenAlex(): Promise<Paper[]> {
           authors: (item.authorships || []).map((a: OpenAlexAuthorship) => a.author.display_name),
           abstract: reconstructAbstract(item.abstract_inverted_index),
           categories,
-          publishedAt: item.publication_date ? new Date(item.publication_date).toISOString() : new Date().toISOString(),
+          publishedAt: item.publication_date ? normalizePublishedAt(item.publication_date) || '' : '',
           pdfUrl,
           arxivUrl: arxivId ? `https://arxiv.org/abs/${arxivId}` : landingUrl,
           source: 'openalex',

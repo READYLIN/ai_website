@@ -4,6 +4,7 @@ import { rssSources, DEFAULT_REVALIDATE, normalizeCategories } from './rss-sourc
 import { translateArticle } from './translator';
 import { scrapeArticleContent, decodeHtmlEntities } from './scraper';
 import { makeId, dedupeByTitleAndUrl, sortByDate, withTtlCache } from './feed-utils';
+import { extractBestPublishedAt } from './intelligence-rules';
 import { saveArticles } from './storage';
 import { getCachedArticleById, getCachedArticles } from './cached-storage';
 
@@ -122,7 +123,11 @@ async function fetchSingleSource(source: (typeof rssSources)[0]): Promise<Articl
         source: source.name,
         sourceIcon: source.icon,
         categories: normalizeCategories(item.categories || []),
-        publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
+        publishedAt: extractBestPublishedAt({
+          published: item.isoDate || item.pubDate || '',
+          url: item.link || '',
+          title: item.title || '',
+        }) || '',
         author: item.creator || item.author || source.name,
       };
     });
