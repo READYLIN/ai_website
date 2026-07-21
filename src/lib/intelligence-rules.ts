@@ -206,23 +206,28 @@ export function extractBestPublishedAt(
 
   const generatedAtTime = item.generatedAt ? new Date(item.generatedAt).getTime() : NaN;
   const nowTime = nowHint ? new Date(nowHint).getTime() : Date.now();
+  const oneDay = 86400_000;
 
   if (publishedNormalized) {
     const publishedTime = new Date(publishedNormalized).getTime();
     const isGenerationTime =
       !Number.isNaN(generatedAtTime) && Math.abs(publishedTime - generatedAtTime) < 1000;
-    const isVeryRecent = Math.abs(publishedTime - nowTime) < 3600_000;
+    const extractedDate = urlDate || titleDate;
 
-    if (!isGenerationTime && !isVeryRecent) {
-      return publishedNormalized;
+    if (extractedDate) {
+      const extractedTime = new Date(extractedDate).getTime();
+      // Trust published only when it is not the exact report-generation timestamp
+      // and falls on the same calendar day as the extracted source date. This
+      // preserves time-of-day precision for trustworthy sources (RSS feeds) while
+      // overriding bogus report-generation stamps that disagree with the URL/title.
+      const sameDay = Math.abs(publishedTime - extractedTime) < oneDay;
+      if (!isGenerationTime && sameDay) {
+        return publishedNormalized;
+      }
+      return extractedDate;
     }
 
-    // published is likely the report generation time (or an extremely recent default).
-    // Prefer URL/title because they are intrinsic to the source.
-    if (urlDate) return urlDate;
-    if (titleDate) return titleDate;
-
-    // If it is not exactly generation time, keep it as a last resort.
+    // No extracted date: keep published if it is not the exact generation timestamp.
     if (!isGenerationTime) return publishedNormalized;
     return null;
   }

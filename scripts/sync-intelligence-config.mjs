@@ -35,47 +35,60 @@ function extractBestPublished(item, generatedAt) {
   const url = String(item.url || '');
   const title = String(item.title || '');
 
-  // URL patterns: eastmoney, cfi, cninfo, WordPress/generic
-  const urlMatch =
-    url.match(/\/a\/(\d{4})(\d{2})(\d{2})\d*\./) ||
-    url.match(/\/p(\d{4})(\d{2})(\d{2})\d*\./) ||
-    url.match(/\/finalpage\/(\d{4})-(\d{2})-(\d{2})\//) ||
-    url.match(/\/(\d{4})[\/-](\d{2})[\/-](\d{2})[\/-]/);
-  if (urlMatch) {
-    const d = new Date(`${urlMatch[1]}-${urlMatch[2]}-${urlMatch[3]}`);
-    if (!Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2000) return d.toISOString();
+  function urlDate() {
+    const matches = [
+      url.match(/\/a\/(\d{4})(\d{2})(\d{2})\d*\./),
+      url.match(/\/p(\d{4})(\d{2})(\d{2})\d*\./),
+      url.match(/\/finalpage\/(\d{4})-(\d{2})-(\d{2})\//),
+      url.match(/\/(\d{4})[\/-](\d{2})[\/-](\d{2})[\/-]/),
+    ];
+    for (const m of matches) {
+      if (m) {
+        const d = new Date(`${m[1]}-${m[2]}-${m[3]}`);
+        if (!Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2000) return d;
+      }
+    }
+    return null;
   }
 
-  // Title patterns: exact date or quarterly report
-  const exact = title.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-  if (exact) {
-    const d = new Date(`${exact[1]}-${exact[2]}-${exact[3]}`);
-    if (!Number.isNaN(d.getTime())) return d.toISOString();
-  }
-  const quarter = title.match(/(\d{4})年(一季报|半年报|三季报|年报)/);
-  if (quarter) {
-    const y = quarter[1];
-    const map = {
-      '一季报': `${y}-04-30`,
-      '半年报': `${y}-08-31`,
-      '三季报': `${y}-10-31`,
-      '年报': `${String(parseInt(y, 10) + 1)}-03-31`,
-    };
-    const d = new Date(map[quarter[2]]);
-    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  function titleDate() {
+    const exact = title.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    if (exact) {
+      const d = new Date(`${exact[1]}-${exact[2]}-${exact[3]}`);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    const quarter = title.match(/(\d{4})年(一季报|半年报|三季报|年报)/);
+    if (quarter) {
+      const y = parseInt(quarter[1], 10);
+      const map = {
+        '一季报': `${y}-04-30`,
+        '半年报': `${y}-08-31`,
+        '三季报': `${y}-10-31`,
+        '年报': `${y + 1}-03-31`,
+      };
+      const d = new Date(map[quarter[2]]);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    return null;
   }
 
-  // Keep original published if it is valid and not the report generation timestamp
+  const extracted = urlDate() || titleDate();
   const published = item.published;
   if (isValidDate(published)) {
     const publishedTime = new Date(published).getTime();
     const generatedAtTime = generatedAt ? new Date(generatedAt).getTime() : NaN;
-    if (Number.isNaN(generatedAtTime) || Math.abs(publishedTime - generatedAtTime) >= 1000) {
-      return new Date(published).toISOString();
+    const isGenerationTime =
+      !Number.isNaN(generatedAtTime) && Math.abs(publishedTime - generatedAtTime) < 1000;
+    if (extracted) {
+      const extractedTime = extracted.getTime();
+      const sameDay = Math.abs(publishedTime - extractedTime) < 86400_000;
+      if (!isGenerationTime && sameDay) return new Date(published).toISOString();
+      return extracted.toISOString();
     }
+    if (!isGenerationTime) return new Date(published).toISOString();
   }
 
-  return null;
+  return extracted ? extracted.toISOString() : null;
 }
 
 function mergeReports(destination, source, historyPath) {
