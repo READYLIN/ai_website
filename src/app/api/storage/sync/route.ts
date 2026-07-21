@@ -20,7 +20,6 @@ import {
 import { IntelArticle } from '@/lib/types';
 import { qualityIssues, sanitizeAndDedupeIntelligence } from '@/lib/intelligence-rules';
 import { keepTrackedPrivateEquityCompanies } from '@/lib/private-equity-companies';
-import { syncNonListedDoubaoToCloud } from '@/lib/non-listed-doubao';
 import { revalidateTag } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
@@ -123,13 +122,8 @@ async function handleSync(request: NextRequest, debugMode?: boolean) {
 
     const stats = await getStorageStats();
 
-    // 非上市公司「豆包补充」增量抓取：在主同步存盘之后执行，失败不影响主数据。
-    let nonListedDoubao: Awaited<ReturnType<typeof syncNonListedDoubaoToCloud>> | null = null;
-    try {
-      nonListedDoubao = await syncNonListedDoubaoToCloud();
-    } catch (e) {
-      console.error('[sync] non-listed doubao step failed:', e);
-    }
+    // 豆包（Ark）联网搜索已下线：因成本过高，cron 不再触发任何付费搜索。
+    // 已抓取的历史数据仍保留在 Upstash，仅供只读展示。
 
     const resp: Record<string, unknown> = {
       success: true,
@@ -157,7 +151,6 @@ async function handleSync(request: NextRequest, debugMode?: boolean) {
         mediaIssues: mediaIssues.length,
         privateEquityIssues: privateEquityIssues.length,
       },
-      nonListedDoubao,
       stats,
     };
     if (debugMode) resp.debug = true;
