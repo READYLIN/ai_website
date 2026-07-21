@@ -4,7 +4,7 @@ import path from 'path';
 import { sanitizeAndDedupeIntelligence } from './intelligence-rules';
 import { withTtlCache } from './feed-utils';
 import { getCachedMediaIntelligence } from './cached-storage';
-import { fetchNonListedRssIntel } from './non-listed-search';
+import { searchNonListedInArticles } from './non-listed-search';
 import { fetchNonListedDoubaoIntel } from './non-listed-doubao';
 
 // Try project-local data directory first (works in Vercel), fallback to absolute path
@@ -119,10 +119,13 @@ export function fetchMediaWeeklySources(): IntelArticle[] {
 const fetchAllMediaIntelCached = withTtlCache(async (): Promise<IntelArticle[]> => {
   const daily = fetchMediaIntelLocal();
   const stored = await getCachedMediaIntelligence().catch(() => []);
-  const nonListed = await fetchNonListedRssIntel().catch(() => []);
+  // 在已有的 daily+stored 快照上做非上市提及检索，避免再触发一次全量 RSS 实时抓取
+  // （cron 已把 fetchMediaArticles 结果写入 stored 快照并经 unstable_cache 持久缓存，
+  // 重复抓取既慢又在 Vercel 冷启动 lambda 上每次必跑，是媒体板块远慢于其他板块的根因）。
+  const nonListedRss = searchNonListedInArticles([...daily, ...stored]);
   const nonListedDoubao = await fetchNonListedDoubaoIntel().catch(() => []);
   return sanitizeAndDedupeIntelligence(
-    [...daily, ...stored, ...nonListed, ...nonListedDoubao],
+    [...daily, ...stored, ...nonListedRss, ...nonListedDoubao],
     'media',
   );
 }, 60 * 1000);
