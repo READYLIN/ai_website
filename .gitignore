@@ -8,6 +8,7 @@ data/*
 !data/media-intel.json
 !data/pe-intel.json
 .env*
+!.env.example
 tsconfig.tsbuildinfo
 .git.backup-pre-rewrite/
 .reasonix/
@@ -15,3 +16,14 @@ tsconfig.tsbuildinfo
 上传/
 .agents/
 .claude/skills/
+.DS_Store
+爬取_web.zip
+爬取_web/
+分析/
+分析结论.md
+.workbuddy/
+作品/
+check-rss.mjs
+
+*.zip
+识澜_web/

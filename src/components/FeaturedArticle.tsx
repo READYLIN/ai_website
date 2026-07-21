@@ -6,25 +6,16 @@ import { Article } from '@/lib/types';
 import { articleDisplayCopy } from '@/lib/display-text';
 import BookmarkButton from './BookmarkButton';
 
-function isFresh(dateStr: string): boolean {
-  return Date.now() - new Date(dateStr).getTime() < 60 * 60 * 1000;
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return `${minutes}分钟前`;
-  if (hours < 24) return `${hours}小时前`;
-  if (days < 7) return `${days}天前`;
-  return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+function publishedDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'Asia/Shanghai',
+  });
 }
 
 export default function FeaturedArticle({ article, linkPrefix = '/articles/' }: { article: Article; linkPrefix?: string }) {
   const [imgError, setImgError] = useState(false);
-  const fresh = isFresh(article.publishedAt);
   const copy = articleDisplayCopy(article);
 
   return (
@@ -49,7 +40,6 @@ export default function FeaturedArticle({ article, linkPrefix = '/articles/' }: 
           <div className="flex items-center gap-2 mb-4 text-xs">
             <span className="cursor-mark" aria-hidden="true" />
             <span className="section-label text-accent dark:text-accent-dark">头条</span>
-            {fresh && <><span className="text-light-border dark:text-dark-border">·</span><span className="font-mono text-light-muted dark:text-dark-muted">刚刚更新</span></>}
           </div>
 
           <Link href={`${linkPrefix}${article.id}`} className="rounded-sm">
@@ -69,7 +59,7 @@ export default function FeaturedArticle({ article, linkPrefix = '/articles/' }: 
             <div className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted">
               <span className="flex items-center gap-1.5"><span className="text-base">{article.sourceIcon}</span><span className="font-medium">{article.source}</span></span>
               <span className="text-light-border dark:text-dark-border">·</span>
-              <time className="font-mono text-[11px]">{timeAgo(article.publishedAt)}</time>
+              <time className="font-mono text-[11px]">{publishedDate(article.publishedAt)}</time>
             </div>
             <BookmarkButton articleId={article.id} />
           </div>

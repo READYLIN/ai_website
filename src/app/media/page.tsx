@@ -1,21 +1,14 @@
 import { fetchAllMediaIntel, getMediaGroups } from '@/lib/media-intel';
 import { serialize } from '@/lib/serialize';
-import GroupedIntelList from '@/components/GroupedIntelList';
+import IntelligenceExplorer from '@/components/IntelligenceExplorer';
+import NewsletterCTA from '@/components/NewsletterCTA';
+import entityConfig from '../../../data/intelligence-entities.json';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
-interface MediaPageProps {
-  searchParams: { group?: string; page?: string };
-}
-
-export default async function MediaPage({ searchParams }: MediaPageProps) {
+export default async function MediaPage() {
   const allArticles = serialize(await fetchAllMediaIntel());
-  const groups = getMediaGroups();
-  const activeGroup = searchParams.group || '';
-
-  const filtered = activeGroup
-    ? allArticles.filter((a) => a.companyGroup === activeGroup)
-    : allArticles;
+  const groups = getMediaGroups(allArticles);
 
   const companies = new Set(allArticles.map((a) => a.company).filter(Boolean));
 
@@ -30,48 +23,22 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
           传媒监控
         </h1>
         <p className="text-light-muted dark:text-dark-muted text-lg max-w-2xl leading-relaxed">
-          追踪 88 家媒体公司与机构经营动态，覆盖报业集团、广电系、户外媒体、央媒、出版传媒等七大分类。本期报告覆盖 {companies.size} 家公司。
+          追踪 {entityConfig.mediaConfiguredCount} 家媒体公司与机构经营动态，覆盖报业集团、广电系、户外媒体、央媒、出版传媒及未上市头部内容机构等分类。本期报告覆盖 {companies.size} 家公司。
         </p>
         <p className="mt-5 font-mono text-xs text-light-muted dark:text-dark-muted">
           已收录 {allArticles.length} 条情报 · {groups.length} 个分类
         </p>
       </section>
 
-      {/* Group filter tabs */}
-      {groups.length > 1 && (
-        <section className="mb-8">
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="/media"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !activeGroup
-                  ? 'bg-accent text-white'
-                  : 'bg-light-border/40 dark:bg-dark-border/40 text-light-text dark:text-dark-text hover:bg-light-border/60 dark:hover:bg-dark-border/60'
-              }`}
-            >
-              全部
-            </a>
-            {groups.map((g) => (
-              <a
-                key={g}
-                href={`/media?group=${encodeURIComponent(g)}`}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeGroup === g
-                    ? 'bg-accent text-white'
-                    : 'bg-light-border/40 dark:bg-dark-border/40 text-light-text dark:text-dark-text hover:bg-light-border/60 dark:hover:bg-dark-border/60'
-                }`}
-              >
-                {g}
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
+      <IntelligenceExplorer
+        articles={allArticles}
+        groups={groups}
+        linkPrefix="/media/"
+        priorityCompanies={['粤传媒']}
+        otherLast
+      />
 
-      {/* Paginated list */}
-      <section className="mb-16">
-        <GroupedIntelList articles={filtered} linkPrefix="/media/" />
-      </section>
+      <NewsletterCTA />
     </div>
   );
 }

@@ -97,7 +97,7 @@ export default function Header() {
       }`}
     >
       <div className={`container-site flex items-center justify-between transition-all duration-300 ${scrolled ? 'h-14' : 'h-16'}`}>
-        <Link href="/media" className="flex items-center gap-2.5 group" aria-label="新闻中心首页">
+        <Link href="/" className="flex items-center gap-2.5 group" aria-label="新闻中心首页">
           <div className="relative w-8 h-8 rounded-[10px] bg-accent flex items-center justify-center transition-transform duration-200 group-hover:-rotate-2 group-hover:scale-105 shadow-[0_6px_16px_-8px_rgba(181,78,46,0.85)]">
             <span className="text-white font-display font-bold text-sm">AI</span>
             <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-light-bg bg-white dark:border-dark-bg" aria-hidden="true" />
@@ -110,7 +110,7 @@ export default function Header() {
 
         <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
           {NAV_LINKS.map((link) => (
-            <Link
+            <a
               key={link.href}
               href={link.href}
               className={`relative px-3 py-2 rounded-lg transition-colors group/link ${
@@ -122,7 +122,7 @@ export default function Header() {
             >
               {link.label}
               <span className={`absolute left-3 right-3 -bottom-px h-px bg-accent dark:bg-accent-dark origin-left transition-transform duration-200 ${isActive(link.href) ? 'scale-x-100' : 'scale-x-0 group-hover/link:scale-x-100'}`} />
-            </Link>
+            </a>
           ))}
         </nav>
 
@@ -204,7 +204,7 @@ export default function Header() {
         <nav className="md:hidden border-t border-light-border/60 dark:border-dark-border/60 bg-light-bg/95 dark:bg-dark-bg/95 backdrop-blur-xl animate-slide-up" style={{ animationDuration: '0.25s' }}>
           <div className="container-site flex flex-col py-2 divide-y divide-light-border/50 dark:divide-dark-border/50 text-sm font-medium">
             {NAV_LINKS.map((link) => (
-                <Link
+              <a
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileNavOpen(false)}
@@ -213,7 +213,7 @@ export default function Header() {
               >
                 <svg className="w-[18px] h-[18px] text-light-muted dark:text-dark-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={link.icon} /></svg>
                 {link.label}
-              </Link>
+              </a>
             ))}
           </div>
         </nav>

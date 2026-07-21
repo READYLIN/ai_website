@@ -4,7 +4,8 @@ import { rssSources, DEFAULT_REVALIDATE, normalizeCategories } from './rss-sourc
 import { translateArticle } from './translator';
 import { scrapeArticleContent, decodeHtmlEntities } from './scraper';
 import { makeId, dedupeByTitleAndUrl, sortByDate, withTtlCache } from './feed-utils';
-import { getStoredArticles, saveArticles } from './storage';
+import { saveArticles } from './storage';
+import { getCachedArticleById, getCachedArticles } from './cached-storage';
 
 const parser = new Parser({
   timeout: 10000,
@@ -149,8 +150,8 @@ const fetchWithCache = withTtlCache<Article[]>(async () => {
  * Main entry point: merge stored (historical) articles with live-fetched ones.
  * Automatically saves new live articles to storage.
  */
-export async function fetchAllArticles(): Promise<Article[]> {
-  const stored = await getStoredArticles().catch(() => [] as Article[]);
+const fetchAllArticlesCached = withTtlCache(async (): Promise<Article[]> => {
+  const stored = await getCachedArticles().catch(() => [] as Article[]);
   if (stored.length > 0) {
     return stored.sort(
       (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
@@ -164,6 +165,16 @@ export async function fetchAllArticles(): Promise<Article[]> {
     saveArticles(live).catch((err) => console.error('[fetcher] Background save failed:', err));
   }
   return live;
+}, 60 * 1000);
+
+export async function fetchAllArticles(): Promise<Article[]> {
+  return fetchAllArticlesCached();
+}
+
+export async function fetchArticleById(id: string): Promise<Article | undefined> {
+  const stored = await getCachedArticleById(id).catch(() => undefined);
+  if (stored) return stored;
+  return (await fetchAllArticles()).find(article => article.id === id);
 }
 
 /**

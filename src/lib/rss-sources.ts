@@ -1,10 +1,10 @@
 import { RSSSource } from './types';
 
 export const rssSources: RSSSource[] = [
-  // Chinese sources - WeChat via wechat2rss
+  // Chinese sources - WeChat via RSS bridge (decemberpei.cyou/rssbox)
   {
     name: '量子位',
-    url: 'https://wechat2rss.xlab.app/feed/7131b577c61365cb47e81000738c10d872685908.xml',
+    url: 'https://decemberpei.cyou/rssbox/wechat-liangziwei.xml',
     icon: '⚛️',
     category: 'chinese',
   },
@@ -16,25 +16,25 @@ export const rssSources: RSSSource[] = [
   },
   {
     name: '机器之心',
-    url: 'https://wechat2rss.xlab.app/feed/51e92aad2728acdd1fda7314be32b16639353001.xml',
+    url: 'https://decemberpei.cyou/rssbox/wechat-jiqizhixin.xml',
     icon: '🧠',
     category: 'chinese',
   },
   {
     name: '新智元',
-    url: 'https://wechat2rss.xlab.app/feed/ede30346413ea70dbef5d485ea5cbb95cca446e7.xml',
+    url: 'https://decemberpei.cyou/rssbox/wechat-xinzhiyuan.xml',
     icon: '🤖',
     category: 'chinese',
   },
   {
     name: 'AI前线',
-    url: 'https://wechat2rss.xlab.app/feed/25185b01482da0f485418ecb92e208b4416712fb.xml',
+    url: 'https://decemberpei.cyou/rssbox/wechat-aiqianxian.xml',
     icon: '🔥',
     category: 'chinese',
   },
   {
     name: '腾讯技术工程',
-    url: 'https://wechat2rss.xlab.app/feed/9685937b45fe9c7a526dbc32e4f24ba879a65b9a.xml',
+    url: 'https://decemberpei.cyou/rssbox/wechat-tengxunjishugongcheng.xml',
     icon: '🐧',
     category: 'chinese',
   },

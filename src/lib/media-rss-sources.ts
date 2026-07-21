@@ -1,9 +1,11 @@
 import { RSSSource } from './types';
+import monitorConfig from '../../data/intelligence-entities.json';
+import { nonListedRssSources } from './non-listed-companies';
 
-export const mediaSources: RSSSource[] = [
+const existingMediaSources: RSSSource[] = [
   // Official RSS
   {
-    name: '人民网传媒',
+    name: '人民网传媒频道',
     url: 'http://www.people.com.cn/rss/media.xml',
     icon: '🏛️',
     category: 'chinese',
@@ -12,30 +14,6 @@ export const mediaSources: RSSSource[] = [
     name: '人民网时政',
     url: 'http://www.people.com.cn/rss/politics.xml',
     icon: '🏛️',
-    category: 'chinese',
-  },
-  {
-    name: '新华网国内',
-    url: 'http://rss.xinhuanet.com/rss/native.xml',
-    icon: '📡',
-    category: 'chinese',
-  },
-  {
-    name: '新华网国际',
-    url: 'http://rss.xinhuanet.com/rss/world.xml',
-    icon: '📡',
-    category: 'chinese',
-  },
-  {
-    name: '新华网财经',
-    url: 'http://rss.xinhuanet.com/rss/fortune.xml',
-    icon: '📡',
-    category: 'chinese',
-  },
-  {
-    name: '新华网证券',
-    url: 'http://rss.xinhuanet.com/rss/stock.xml',
-    icon: '📡',
     category: 'chinese',
   },
   // RSSHub routes
@@ -312,3 +290,98 @@ export const mediaSources: RSSSource[] = [
     category: 'chinese',
   },
 ];
+
+// Missing sources shared by media_weekly_automation. The two routes already in
+// existingMediaSources stay there so the merged list has no duplicate entries.
+const weeklyAutomationSources: RSSSource[] = [
+  {
+    name: '财联社电报',
+    url: 'https://rsshub.rssforever.com/cls/telegraph',
+    icon: '⚡',
+    category: 'chinese',
+  },
+  {
+    name: '新浪财经滚动',
+    url: 'https://rsshub.rssforever.com/sina/finance/rollnews',
+    icon: '💹',
+    category: 'chinese',
+  },
+  {
+    name: '36氪',
+    url: 'https://36kr.com/feed',
+    icon: '💡',
+    category: 'chinese',
+  },
+  {
+    name: '第一财经',
+    url: 'https://rsshub.rssforever.com/yicai/news',
+    icon: '📰',
+    category: 'chinese',
+  },
+  {
+    name: '华尔街见闻实时',
+    url: 'https://rsshub.rssforever.com/wallstreetcn/live',
+    icon: '🌐',
+    category: 'chinese',
+  },
+  {
+    name: '人民网财经',
+    url: 'https://rsshub.rssforever.com/people/finance',
+    icon: '🏛️',
+    category: 'chinese',
+  },
+  {
+    name: '上交所公告',
+    url: 'https://rsshub.rssforever.com/sse/disclosure',
+    icon: '📋',
+    category: 'chinese',
+  },
+  {
+    name: '深交所公告',
+    url: 'https://rsshub.rssforever.com/szse/disclosure/listed/notice',
+    icon: '📋',
+    category: 'chinese',
+  },
+];
+
+// 非上市公司「情报覆盖」新鲜源（2026-07-20 逐个实测新鲜度后接入）。
+// 说明：这 37 家非上市媒体集团的官方 RSS 已全部废弃/死链（实测 /rss/ 均 404/403/返回 HTML，
+// 仅人民网官方源可响应但停更 14 个月）。唯一可行的自动更新机制是 RSSHub。以下 4 条旗舰媒体
+// 路由经镜像实测「存在且新鲜」（近 1-3 天有内容），作为通用新闻池 —— 由 non-listed-search
+// 的「标题/正文提及检索」去命中 37 家中被报道的公司。这里刻意用中性媒体名（非集团名），
+// 避免来源名污染公司标签。
+const freshNewsSources: RSSSource[] = [
+  { name: '澎湃新闻头条', url: 'https://rsshub.app/thepaper/featured', icon: '📰', category: 'chinese' },
+  { name: '财新网最新', url: 'https://rsshub.app/caixin/latest', icon: '📰', category: 'chinese' },
+  { name: '南方周末', url: 'https://rsshub.app/infzm/1', icon: '📰', category: 'chinese' },
+  { name: '浙江日报', url: 'https://rsshub.app/zjol/paper/zjrb', icon: '📰', category: 'chinese' },
+];
+
+const configuredMediaSources: RSSSource[] = monitorConfig.mediaRssSources.map(source => ({
+  name: source.name,
+  url: source.url,
+  icon: source.name.includes('巨潮') ? '📋' : '📰',
+  category: 'chinese',
+}));
+
+function logicalSourceKey(source: RSSSource): string {
+  try {
+    const url = new URL(source.url);
+    return url.hostname.startsWith('rsshub.') ? `${url.pathname}${url.search}` : url.href;
+  } catch {
+    return source.url;
+  }
+}
+
+export const mediaSources: RSSSource[] = Array.from(
+  new Map(
+    [
+      ...existingMediaSources,
+      ...freshNewsSources,
+      ...configuredMediaSources,
+      ...weeklyAutomationSources,
+      ...nonListedRssSources(),
+    ]
+      .map(source => [logicalSourceKey(source), source]),
+  ).values(),
+);

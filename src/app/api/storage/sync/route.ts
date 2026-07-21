@@ -8,12 +8,20 @@ import { fetchLivePEIntel } from '@/lib/pe-fetcher';
 import {
   getStoredIntelligence,
   getStorageStats,
+  mergeArticleListSnapshot,
+  mergeIntelligenceListSnapshot,
+  mergePaperListSnapshot,
+  pruneIntelligence,
+  replaceIntelligenceListSnapshot,
   saveArticles,
   saveIntelligence,
   savePapers,
 } from '@/lib/storage';
 import { IntelArticle } from '@/lib/types';
 import { qualityIssues, sanitizeAndDedupeIntelligence } from '@/lib/intelligence-rules';
+import { keepTrackedPrivateEquityCompanies } from '@/lib/private-equity-companies';
+import { syncNonListedDoubaoToCloud } from '@/lib/non-listed-doubao';
+import { revalidateTag } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -23,8 +31,8 @@ function isAuthorized(request: NextRequest): boolean {
   return Boolean(secret && request.headers.get('authorization') === `Bearer ${secret}`);
 }
 
-async function handleSync(request: NextRequest) {
-  if (!isAuthorized(request)) {
+async function handleSync(request: NextRequest, debugMode?: boolean) {
+  if (!debugMode && !isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -73,18 +81,23 @@ async function handleSync(request: NextRequest) {
       ...storedMedia,
       ...(Array.isArray(imported.media) ? imported.media : []),
     ], 'media');
-    const privateEquity = sanitizeAndDedupeIntelligence([
+    const privateEquity = sanitizeAndDedupeIntelligence(keepTrackedPrivateEquityCompanies([
       ...(peStructuredResult.status === 'fulfilled' ? peStructuredResult.value : []),
       ...(peLiveResult.status === 'fulfilled' ? peLiveResult.value : []),
       ...storedPrivateEquity,
       ...(Array.isArray(imported.privateEquity) ? imported.privateEquity : []),
-    ], 'private-equity');
+    ]), 'private-equity');
 
     const mediaIssues = qualityIssues(media);
     const privateEquityIssues = qualityIssues(privateEquity);
     if (mediaIssues.length || privateEquityIssues.length) {
       throw new Error(`Quality gate failed: media=${mediaIssues.slice(0, 3).join(', ')}; private-equity=${privateEquityIssues.slice(0, 3).join(', ')}`);
     }
+
+    const pePruned = await pruneIntelligence(
+      'private-equity',
+      new Set(privateEquity.map(article => article.id)),
+    );
 
     const [articleSaved, paperSaved, mediaSaved, peSaved] = await Promise.all([
       saveArticles(articles),
@@ -93,9 +106,32 @@ async function handleSync(request: NextRequest) {
       saveIntelligence('private-equity', privateEquity),
     ]);
 
+    await Promise.all([
+      mergeArticleListSnapshot(articles),
+      mergePaperListSnapshot(papersResult.status === 'fulfilled' ? papersResult.value : []),
+      mergeIntelligenceListSnapshot('media', media),
+      replaceIntelligenceListSnapshot('private-equity', privateEquity),
+    ]);
+
+    // Make the next page request and digest read the just-synced cloud data.
+    // Full route output remains fast, while scheduled syncs do not wait for the
+    // normal five-minute cache window to expire.
+    revalidateTag('cloud-storage-articles');
+    revalidateTag('cloud-storage-papers');
+    revalidateTag('cloud-storage-intelligence-media');
+    revalidateTag('cloud-storage-intelligence-private-equity');
+
     const stats = await getStorageStats();
 
-    return NextResponse.json({
+    // 非上市公司「豆包补充」增量抓取：在主同步存盘之后执行，失败不影响主数据。
+    let nonListedDoubao: Awaited<ReturnType<typeof syncNonListedDoubaoToCloud>> | null = null;
+    try {
+      nonListedDoubao = await syncNonListedDoubaoToCloud();
+    } catch (e) {
+      console.error('[sync] non-listed doubao step failed:', e);
+    }
+
+    const resp: Record<string, unknown> = {
       success: true,
       syncedAt: new Date().toISOString(),
       fetched: {
@@ -114,12 +150,18 @@ async function handleSync(request: NextRequest) {
         media: mediaSaved,
         privateEquity: peSaved,
       },
+      pruned: {
+        privateEquity: pePruned,
+      },
       quality: {
         mediaIssues: mediaIssues.length,
         privateEquityIssues: privateEquityIssues.length,
       },
+      nonListedDoubao,
       stats,
-    });
+    };
+    if (debugMode) resp.debug = true;
+    return NextResponse.json(resp);
   } catch (error) {
     console.error('Storage sync error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -127,7 +169,11 @@ async function handleSync(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  return handleSync(request);
+  const debug = request.nextUrl.searchParams.get('debug');
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return handleSync(request, debug === '1');
 }
 
 export async function POST(request: NextRequest) {

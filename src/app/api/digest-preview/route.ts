@@ -10,10 +10,8 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
-  // Allow either Bearer token or ?key= for easy browser preview
-  const queryKey = request.nextUrl.searchParams.get('key');
   const expected = process.env.CRON_SECRET;
-  if (!expected || (authHeader !== `Bearer ${expected}` && queryKey !== expected)) {
+  if (!expected || authHeader !== `Bearer ${expected}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

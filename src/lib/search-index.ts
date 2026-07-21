@@ -40,7 +40,7 @@ async function loadDocs(): Promise<SearchDoc[]> {
   } catch {}
 
   try {
-    const media = fetchAllMediaIntel();
+    const media = await fetchAllMediaIntel();
     for (const m of media) {
       docs.push({
         id: m.id, title: m.title || '', titleZh: m.title || '',
@@ -52,7 +52,7 @@ async function loadDocs(): Promise<SearchDoc[]> {
   } catch {}
 
   try {
-    const pe = fetchPEIntel();
+    const pe = await fetchPEIntel();
     for (const p of pe) {
       docs.push({
         id: p.id, title: p.title || '', titleZh: p.title || '',

@@ -1,93 +1,107 @@
 import Parser from 'rss-parser';
-import { Article } from './types';
+import { IntelArticle } from './types';
 import { mediaSources } from './media-rss-sources';
-import { makeId, normalizeTitle, normalizeUrl, dedupeByTitleAndUrl, sortByDate, withTtlCache } from './feed-utils';
+import { makeId, withTtlCache } from './feed-utils';
+import {
+  cleanIntelligenceText,
+  entityByName,
+  sanitizeAndDedupeIntelligence,
+} from './intelligence-rules';
 
 const parser = new Parser({
-  timeout: 10000,
+  timeout: 15000,
   headers: {
-    'User-Agent': 'Media Monitor/1.0',
+    'User-Agent': 'Newsroom Intelligence Hub/2.0',
+    Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml',
   },
 });
 
-function extractImage(item: Record<string, unknown>): string | undefined {
-  const enclosure = item.enclosure as { url?: string } | undefined;
-  if (enclosure?.url) return enclosure.url;
+// RSSHub 镜像回退链：任一 rsshub.* 路由会依次尝试这些镜像，直到成功。
+// rssforever / rsshub.app 时有 403/超时；hub.slarker.me、rsshub.ktachibana.party
+// 2026-07-20 实测稳定可用，作为额外回退，显著提升所有 RSSHub 路由的成功率。
+const RSSHUB_MIRRORS = [
+  process.env.RSSHUB_BASE_URL,
+  'https://rsshub.rssforever.com',
+  'https://rsshub.app',
+  'https://hub.slarker.me',
+  'https://rsshub.ktachibana.party',
+].filter((value): value is string => Boolean(value));
 
-  const mediaContent = item['media:content'] as { $?: { url?: string } } | undefined;
-  if (mediaContent?.$?.url) return mediaContent.$.url;
-
-  const content = (item['content:encoded'] || item.content || '') as string;
-  try {
-    const cheerio = require('cheerio') as { load: (html: string) => cheerio.CheerioAPI };
-    const $ = cheerio.load(content);
-    return $('img').first().attr('src') || undefined;
-  } catch {
-    return undefined;
-  }
+function candidateUrls(url: string): string[] {
+  if (!/https:\/\/rsshub\.[^/]+/i.test(url)) return [url];
+  const suffix = new URL(url).pathname + new URL(url).search;
+  return Array.from(new Set(RSSHUB_MIRRORS.map(base => `${base.replace(/\/$/, '')}${suffix}`)));
 }
 
-async function fetchSingleSource(source: typeof mediaSources[0]): Promise<Article[]> {
+async function parseWithFallback(url: string) {
+  let lastError: unknown;
+  for (const candidate of candidateUrls(url)) {
+    try {
+      return await parser.parseURL(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error(`Unable to fetch ${url}`);
+}
+
+async function fetchSingleSource(source: typeof mediaSources[number]): Promise<IntelArticle[]> {
   try {
-    const feed = await parser.parseURL(source.url);
-    const items = (feed.items || []).slice(0, 20);
+    const feed = await parseWithFallback(source.url);
+    const isCompanyDisclosure = source.url.includes('/disclosure/');
+    const declaredCompany = isCompanyDisclosure ? entityByName(source.name, 'media') : undefined;
 
-    return items.map((item) => {
-      const title = item.title || 'Untitled';
-      const rssDescription = item.contentSnippet
-        ? item.contentSnippet.slice(0, 300)
-        : item.content
-          ? item.content.replace(/<[^>]+>/g, '').slice(0, 300)
-          : '';
-
-      const guid = item.guid || item.link || title + source.name;
-      const id = makeId(guid);
+    const raw = (feed.items || []).slice(0, 30).map((item): IntelArticle => {
+      const rawTitle = cleanIntelligenceText(item.title || '', 180) || '未命名资讯';
+      const title = declaredCompany ? `${declaredCompany.name}：${rawTitle}` : rawTitle;
+      const description = cleanIntelligenceText(
+        item.contentSnippet || item.summary || item.content || item['content:encoded'] || '',
+        260,
+      );
+      const guid = item.guid || item.link || `${title}-${source.name}`;
 
       return {
-        id,
+        id: `media-live-${makeId(guid)}`,
         title,
-        titleZh: title,
-        description: rssDescription,
-        descriptionZh: rssDescription,
-        content: item['content:encoded'] || item.content || '',
-        contentZh: item['content:encoded'] || item.content || '',
+        description,
         url: item.link || '',
-        imageUrl: extractImage(item as Record<string, unknown>),
         source: source.name,
-        sourceIcon: source.icon,
         categories: ['传媒监控', source.name],
-        publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
+        publishedAt: item.isoDate || item.pubDate || '',
         author: source.name,
+        company: declaredCompany?.name,
+        companyGroup: 'RSS 自动抓取',
+        priority: 'P2',
+        dimension: '待分类',
+        matrixLabel: 'RSS 自动抓取',
+        credibility: isCompanyDisclosure ? '高' : '中高',
       };
     });
+
+    return sanitizeAndDedupeIntelligence(raw, 'media');
   } catch (error) {
-    console.error(`Failed to fetch ${source.name}:`, error);
+    console.error(`[media-fetcher] Failed to fetch ${source.name}:`, error);
     return [];
   }
 }
 
-const fetchWithCache = withTtlCache<Article[]>(async () => {
-  const results = await Promise.allSettled(
-    mediaSources.map((source) => fetchSingleSource(source))
-  );
-
+const fetchWithCache = withTtlCache<IntelArticle[]>(async () => {
+  const results = await Promise.allSettled(mediaSources.map(source => fetchSingleSource(source)));
   const articles = results
-    .filter((r): r is PromiseFulfilledResult<Article[]> => r.status === 'fulfilled')
-    .flatMap((r) => r.value);
+    .filter((result): result is PromiseFulfilledResult<IntelArticle[]> => result.status === 'fulfilled')
+    .flatMap(result => result.value);
+  return sanitizeAndDedupeIntelligence(articles, 'media');
+}, 30 * 60 * 1000);
 
-  return sortByDate(dedupeByTitleAndUrl(articles));
-}, 5000);
-
-export async function fetchMediaArticles(): Promise<Article[]> {
+export async function fetchMediaArticles(): Promise<IntelArticle[]> {
   return fetchWithCache();
 }
 
 export function getSourceGroups(): { label: string; sources: string[] }[] {
-  const stockSources = mediaSources.filter(s => s.url.includes('disclosure'));
-  const newsSources = mediaSources.filter(s => !s.url.includes('disclosure'));
-
+  const stockSources = mediaSources.filter(source => source.url.includes('disclosure'));
+  const newsSources = mediaSources.filter(source => !source.url.includes('disclosure'));
   return [
-    { label: '新闻媒体', sources: newsSources.map(s => s.name) },
-    { label: '上市公司公告', sources: stockSources.map(s => s.name) },
+    { label: '新闻媒体 RSS', sources: newsSources.map(source => source.name) },
+    { label: '上市公司公告 RSS', sources: stockSources.map(source => source.name) },
   ];
 }

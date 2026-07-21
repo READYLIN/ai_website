@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync:intelligence-config": "node scripts/sync-intelligence-config.mjs",
+    "sync:list-snapshots": "node scripts/rebuild-list-snapshots.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

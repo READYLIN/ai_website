@@ -1,25 +1,12 @@
 import Link from 'next/link';
 import { Paper } from '@/lib/types';
 
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-
-  // Guard against future dates
-  if (diff < 0) {
-    return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-  }
-
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return `${minutes}分钟前`;
-  if (hours < 24) return `${hours}小时前`;
-  if (days < 7) return `${days}天前`;
-  return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+function publishedDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'Asia/Shanghai',
+  });
 }
 
 function sourceBadge(source: Paper['source']) {
@@ -52,7 +39,7 @@ export default function PaperCard({ paper, style }: { paper: Paper; style?: Reac
           </>
         )}
         <span className="text-light-border dark:text-dark-border">·</span>
-        <time className="font-mono text-[11px]">{timeAgo(paper.publishedAt)}</time>
+        <time className="font-mono text-[11px]">{publishedDate(paper.publishedAt)}</time>
       </div>
 
       <Link href={`/papers/${paper.id}`} className="block flex-1">

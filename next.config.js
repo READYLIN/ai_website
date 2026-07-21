@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Initial ISR generation reads the complete cloud archive. Allow enough time
+  // for a distant Redis region without killing and restarting the build worker.
+  staticPageGenerationTimeout: 180,
   images: {
     remotePatterns: [
       // RSS feed images

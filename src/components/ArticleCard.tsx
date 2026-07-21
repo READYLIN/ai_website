@@ -7,29 +7,12 @@ import { Article } from '@/lib/types';
 import { articleDisplayCopy } from '@/lib/display-text';
 import BookmarkButton from './BookmarkButton';
 
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-
-  // Guard against future dates
-  if (diff < 0) {
-    return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-  }
-
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return `${minutes}分钟前`;
-  if (hours < 24) return `${hours}小时前`;
-  if (days < 7) return `${days}天前`;
-  return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-}
-
-function isFresh(dateStr: string): boolean {
-  return Date.now() - new Date(dateStr).getTime() < 60 * 60 * 1000; // < 1 hour
+function publishedDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'Asia/Shanghai',
+  });
 }
 
 // Rough estimate: Chinese text ~400 characters/min, Latin text ~200 words/min.
@@ -43,7 +26,6 @@ function readingTime(text: string): number {
 export default function ArticleCard({ article, style, linkPrefix = '/articles/' }: { article: Article; style?: React.CSSProperties; linkPrefix?: string }) {
   const slug = article.id;
   const [imgError, setImgError] = useState(false);
-  const fresh = isFresh(article.publishedAt);
   const mins = readingTime(article.contentZh || article.content || article.descriptionZh || article.description);
   const copy = articleDisplayCopy(article);
   const categories = article.categories
@@ -72,15 +54,9 @@ export default function ArticleCard({ article, style, linkPrefix = '/articles/' 
       )}
 
       <div className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted mb-3 flex-wrap">
-        {fresh && (
-          <span className="inline-flex items-center gap-1.5 text-accent dark:text-accent-dark font-medium">
-            <span className="cursor-mark" aria-hidden="true" />
-            最新
-          </span>
-        )}
         <span className="flex items-center gap-1.5"><span className="text-base">{article.sourceIcon}</span><span className="font-medium">{article.source}</span></span>
         <span className="text-light-border dark:text-dark-border">·</span>
-        <time className="font-mono text-[11px]">{timeAgo(article.publishedAt)}</time>
+        <time className="font-mono text-[11px]">{publishedDate(article.publishedAt)}</time>
         <span className="text-light-border dark:text-dark-border">·</span>
         <span className="font-mono text-[11px]">{mins} 分钟阅读</span>
       </div>

@@ -1,6 +1,11 @@
 import { readFileSync, existsSync } from 'fs';
 import { IntelArticle } from './types';
 import path from 'path';
+import { sanitizeAndDedupeIntelligence } from './intelligence-rules';
+import { withTtlCache } from './feed-utils';
+import { getCachedMediaIntelligence } from './cached-storage';
+import { fetchNonListedRssIntel } from './non-listed-search';
+import { fetchNonListedDoubaoIntel } from './non-listed-doubao';
 
 // Try project-local data directory first (works in Vercel), fallback to absolute path
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -8,11 +13,17 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const MEDIA_DAILY_LOCAL = path.join(DATA_DIR, 'media-intel.json');
 const MEDIA_WEEKLY_LOCAL = path.join(DATA_DIR, 'media-weekly.json');
 
-const MEDIA_DAILY_ABS =
-  '/Users/z1/Documents/New project/media_weekly_automation/competitive_intel_last_report.json';
-
-const MEDIA_WEEKLY_ABS =
-  '/Users/z1/Documents/New project/media_weekly_automation/last_report.json';
+const WORKSPACE_ROOT = process.env.INTELLIGENCE_WORKSPACE_ROOT || path.resolve(process.cwd(), '..');
+const MEDIA_DAILY_EXTERNAL = process.env.MEDIA_INTEL_PATH || path.join(
+  WORKSPACE_ROOT,
+  'media_weekly_automation',
+  'competitive_intel_last_report.json',
+);
+const MEDIA_WEEKLY_EXTERNAL = process.env.MEDIA_WEEKLY_PATH || path.join(
+  WORKSPACE_ROOT,
+  'media_weekly_automation',
+  'last_report.json',
+);
 
 function resolvePath(local: string, abs: string): string {
   if (existsSync(local)) return local;
@@ -50,9 +61,9 @@ function hashId(s: string): string {
 /**
  * Read daily media intelligence report from external project.
  */
-export function fetchMediaIntel(): IntelArticle[] {
+export function fetchMediaIntelLocal(): IntelArticle[] {
   try {
-    const raw = readFileSync(resolvePath(MEDIA_DAILY_LOCAL, MEDIA_DAILY_ABS), 'utf-8');
+    const raw = readFileSync(resolvePath(MEDIA_DAILY_LOCAL, MEDIA_DAILY_EXTERNAL), 'utf-8');
     const data = JSON.parse(raw);
     const items: MediaDailyItem[] = data.items || [];
 
@@ -63,9 +74,7 @@ export function fetchMediaIntel(): IntelArticle[] {
       url: item.url || '',
       source: item.source || '',
       categories: [item.company_group || '传媒', item.dimension || ''].filter(Boolean),
-      publishedAt: item.published
-        ? new Date(item.published).toISOString()
-        : new Date().toISOString(),
+      publishedAt: item.published || '',
       author: item.company || '',
       company: item.company || '',
       companyGroup: item.company_group || '',
@@ -84,7 +93,7 @@ export function fetchMediaIntel(): IntelArticle[] {
  */
 export function fetchMediaWeeklySources(): IntelArticle[] {
   try {
-    const raw = readFileSync(resolvePath(MEDIA_WEEKLY_LOCAL, MEDIA_WEEKLY_ABS), 'utf-8');
+    const raw = readFileSync(resolvePath(MEDIA_WEEKLY_LOCAL, MEDIA_WEEKLY_EXTERNAL), 'utf-8');
     const data = JSON.parse(raw);
     const sources: MediaWeeklySource[] = data.sources || [];
 
@@ -107,33 +116,25 @@ export function fetchMediaWeeklySources(): IntelArticle[] {
 /**
  * Merge daily and weekly data, deduplicate by URL.
  */
-export function fetchAllMediaIntel(): IntelArticle[] {
-  const daily = fetchMediaIntel();
-  const weekly = fetchMediaWeeklySources();
-
-  const seen = new Set(daily.map((a) => a.url));
-  const merged = [...daily];
-
-  for (const item of weekly) {
-    if (!seen.has(item.url)) {
-      seen.add(item.url);
-      merged.push(item);
-    }
-  }
-
-  merged.sort(
-    (a, b) =>
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+const fetchAllMediaIntelCached = withTtlCache(async (): Promise<IntelArticle[]> => {
+  const daily = fetchMediaIntelLocal();
+  const stored = await getCachedMediaIntelligence().catch(() => []);
+  const nonListed = await fetchNonListedRssIntel().catch(() => []);
+  const nonListedDoubao = await fetchNonListedDoubaoIntel().catch(() => []);
+  return sanitizeAndDedupeIntelligence(
+    [...daily, ...stored, ...nonListed, ...nonListedDoubao],
+    'media',
   );
+}, 60 * 1000);
 
-  return merged;
+export async function fetchAllMediaIntel(): Promise<IntelArticle[]> {
+  return fetchAllMediaIntelCached();
 }
 
 /**
  * Get available company groups for filtering.
  */
-export function getMediaGroups(): string[] {
-  const all = fetchMediaIntel();
+export function getMediaGroups(all: IntelArticle[]): string[] {
   const groups = new Set(all.map((a) => a.companyGroup).filter(Boolean));
   return Array.from(groups).sort() as string[];
 }

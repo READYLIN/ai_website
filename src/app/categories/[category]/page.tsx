@@ -3,7 +3,7 @@ import { serialize } from '@/lib/serialize';
 import ArticleList from '@/components/ArticleList';
 import CategoryNav from '@/components/CategoryNav';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export default async function CategoryPage({
   params,
@@ -11,7 +11,7 @@ export default async function CategoryPage({
   params: { category: string };
 }) {
   const category = decodeURIComponent(params.category);
-  const allArticles = serialize(await fetchAllArticles());
+  const allArticles = serialize(await fetchAllArticles()).map(({ content: _content, contentZh: _contentZh, ...article }) => article);
   const articles = allArticles.filter((a) =>
     a.categories.some(
       (c) => c.toLowerCase() === category.toLowerCase()

@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { serialize } from '@/lib/serialize';
 import { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const all = serialize(fetchPEIntel());
+  const all = serialize(await fetchPEIntel());
   const article = all.find((a: any) => a.id === params.slug);
   if (!article) return { title: '未找到' };
   return {
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function PEDetailPage({ params }: { params: { slug: string } }) {
-  const all = serialize(fetchPEIntel());
+  const all = serialize(await fetchPEIntel());
   const article = all.find((a: any) => a.id === params.slug);
   if (!article) notFound();
 

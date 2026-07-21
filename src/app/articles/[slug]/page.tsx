@@ -1,4 +1,4 @@
-import { fetchAllArticles } from '@/lib/fetcher';
+import { fetchArticleById } from '@/lib/fetcher';
 import { serialize } from '@/lib/serialize';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -11,17 +11,16 @@ import RelatedArticles from '@/components/RelatedArticles';
 import BreadcrumbNav from '@/components/BreadcrumbNav';
 import ShareBar from '@/components/ShareBar';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export async function generateMetadata({
   params,
 }: {
   params: { slug: string };
 }): Promise<Metadata> {
-  const articles = serialize(await fetchAllArticles());
-  const article = articles.find((a) => a.id === params.slug);
-
-  if (!article) return { title: '文章未找到' };
+  const found = await fetchArticleById(params.slug);
+  if (!found) return { title: '文章未找到' };
+  const article = serialize(found);
 
   const { title, description } = articleDisplayCopy(article);
 
@@ -49,13 +48,11 @@ export default async function ArticlePage({
 }: {
   params: { slug: string };
 }) {
-  const articles = serialize(await fetchAllArticles());
-  const article = articles.find((a) => a.id === params.slug);
-
-  if (!article) {
+  const found = await fetchArticleById(params.slug);
+  if (!found) {
     notFound();
   }
-
+  const article = serialize(found);
   const copy = articleDisplayCopy(article);
   const visibleCategories = article.categories.filter((category) => category.length <= 28).slice(0, 6);
 

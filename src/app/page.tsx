@@ -5,10 +5,10 @@ import CategoryNav from '@/components/CategoryNav';
 import NewsletterCTA from '@/components/NewsletterCTA';
 import TrendingSection from '@/components/TrendingSection';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export default async function HomePage() {
-  const articles = serialize(await fetchAllArticles());
+  const articles = serialize(await fetchAllArticles()).map(({ content: _content, contentZh: _contentZh, ...article }) => article);
   const sourceCount = new Set(articles.map((article) => article.source)).size;
   const latest = articles[0]?.publishedAt
     ? new Date(articles[0].publishedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })

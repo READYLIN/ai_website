@@ -1,15 +1,23 @@
 import { readFileSync, existsSync } from 'fs';
 import { IntelArticle } from './types';
 import path from 'path';
+import { sanitizeAndDedupeIntelligence } from './intelligence-rules';
+import { keepTrackedPrivateEquityCompanies } from './private-equity-companies';
+import { withTtlCache } from './feed-utils';
+import { getCachedPrivateEquityIntelligence } from './cached-storage';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const PE_LOCAL = path.join(DATA_DIR, 'pe-intel.json');
-const PE_ABS =
-  '/Users/z1/Documents/New project/private_equity_fund_automation/pe_vc_weekly_last_report.json';
+const WORKSPACE_ROOT = process.env.INTELLIGENCE_WORKSPACE_ROOT || path.resolve(process.cwd(), '..');
+const PE_EXTERNAL = process.env.PE_INTEL_PATH || path.join(
+  WORKSPACE_ROOT,
+  'private_equity_fund_automation',
+  'pe_vc_weekly_last_report.json',
+);
 
 function resolvePath(): string {
   if (existsSync(PE_LOCAL)) return PE_LOCAL;
-  if (existsSync(PE_ABS)) return PE_ABS;
+  if (existsSync(PE_EXTERNAL)) return PE_EXTERNAL;
   return PE_LOCAL; // default to local (will fail gracefully)
 }
 
@@ -40,7 +48,7 @@ function hashId(s: string): string {
 /**
  * Read PE/VC weekly intelligence report.
  */
-export function fetchPEIntel(): IntelArticle[] {
+export function fetchPEIntelLocal(): IntelArticle[] {
   try {
     const raw = readFileSync(resolvePath(), 'utf-8');
     const data = JSON.parse(raw);
@@ -53,9 +61,7 @@ export function fetchPEIntel(): IntelArticle[] {
       url: item.url || '',
       source: item.source || '',
       categories: [item.company_group || '私募', item.dimension || ''].filter(Boolean),
-      publishedAt: item.published
-        ? new Date(item.published).toISOString()
-        : new Date().toISOString(),
+      publishedAt: item.published || '',
       author: item.company || '',
       company: item.company || '',
       companyGroup: item.company_group || '',
@@ -70,11 +76,23 @@ export function fetchPEIntel(): IntelArticle[] {
   }
 }
 
+const fetchPEIntelCached = withTtlCache(async (): Promise<IntelArticle[]> => {
+  const local = fetchPEIntelLocal();
+  const stored = await getCachedPrivateEquityIntelligence().catch(() => []);
+  return sanitizeAndDedupeIntelligence(
+    keepTrackedPrivateEquityCompanies([...local, ...stored]),
+    'private-equity',
+  );
+}, 60 * 1000);
+
+export async function fetchPEIntel(): Promise<IntelArticle[]> {
+  return fetchPEIntelCached();
+}
+
 /**
  * Get available company groups for filtering.
  */
-export function getPEGroups(): string[] {
-  const all = fetchPEIntel();
+export function getPEGroups(all: IntelArticle[]): string[] {
   const groups = new Set(all.map((a) => a.companyGroup).filter(Boolean));
   return Array.from(groups).sort() as string[];
 }
@@ -82,8 +100,7 @@ export function getPEGroups(): string[] {
 /**
  * Get available dimensions.
  */
-export function getPEDimensions(): string[] {
-  const all = fetchPEIntel();
+export function getPEDimensions(all: IntelArticle[]): string[] {
   const dims = new Set(all.map((a) => a.dimension).filter(Boolean));
   return Array.from(dims).sort() as string[];
 }

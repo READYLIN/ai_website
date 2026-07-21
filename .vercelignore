@@ -1,0 +1,17 @@
+.git
+.next
+node_modules
+.env
+.env.*
+!.env.example
+.learnings
+.workbuddy
+.DS_Store
+**/.DS_Store
+作品
+识澜_web
+*.zip
+deploy-screenshot.png
+vercel-login.png
+playwright-report
+test-results

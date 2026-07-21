@@ -7,7 +7,11 @@ import Pagination from './Pagination';
 
 const GROUPS_PER_PAGE = 6;
 
-function groupByCompany(articles: IntelArticle[]): { company: string; items: IntelArticle[] }[] {
+function groupByCompany(
+  articles: IntelArticle[],
+  priorityCompanies: string[],
+  otherLast: boolean,
+): { company: string; items: IntelArticle[] }[] {
   const map = new Map<string, IntelArticle[]>();
   for (const a of articles) {
     const key = a.company || '其他';
@@ -19,15 +23,34 @@ function groupByCompany(articles: IntelArticle[]): { company: string; items: Int
       company,
       items: items.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()),
     }))
-    .sort((a, b) => b.items.length - a.items.length || a.company.localeCompare(b.company, 'zh-CN'));
+    .sort((a, b) => {
+      const aPriority = priorityCompanies.indexOf(a.company);
+      const bPriority = priorityCompanies.indexOf(b.company);
+      if (aPriority !== -1 || bPriority !== -1) {
+        if (aPriority === -1) return 1;
+        if (bPriority === -1) return -1;
+        return aPriority - bPriority;
+      }
+
+      if (otherLast && (a.company === '其他' || b.company === '其他')) {
+        if (a.company === '其他' && b.company !== '其他') return 1;
+        if (b.company === '其他' && a.company !== '其他') return -1;
+      }
+
+      return b.items.length - a.items.length || a.company.localeCompare(b.company, 'zh-CN');
+    });
 }
 
 export default function GroupedIntelList({
   articles,
   linkPrefix = '/articles/',
+  priorityCompanies = [],
+  otherLast = false,
 }: {
   articles: IntelArticle[];
   linkPrefix?: string;
+  priorityCompanies?: string[];
+  otherLast?: boolean;
 }) {
   const [page, setPage] = useState(1);
 
@@ -41,7 +64,7 @@ export default function GroupedIntelList({
     );
   }
 
-  const groups = groupByCompany(articles);
+  const groups = groupByCompany(articles, priorityCompanies, otherLast);
   const totalPages = Math.ceil(groups.length / GROUPS_PER_PAGE);
   const start = (page - 1) * GROUPS_PER_PAGE;
   const visible = groups.slice(start, start + GROUPS_PER_PAGE);

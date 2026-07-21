@@ -57,3 +57,52 @@ export interface Paper {
   citationCount?: number;
   venue?: string;
 }
+
+export type IntelligenceChannel = 'media' | 'private-equity';
+
+export interface IntelligenceSourceInventoryItem {
+  name: string;
+  host: string;
+  url?: string;
+  transport: 'rss' | 'rsshub' | 'article';
+}
+
+export interface IntelligencePackage {
+  schemaVersion: 1;
+  channel: IntelligenceChannel;
+  generatedAt: string;
+  window: { days: number; start: string; end: string };
+  filterPolicy: { focus: string[]; excluded: string[] };
+  sourceInventory: IntelligenceSourceInventoryItem[];
+  count: number;
+  items: IntelArticle[];
+}
+
+export interface IntelligenceSourceCandidateInput {
+  channel: IntelligenceChannel;
+  sourceName: string;
+  articleUrl: string;
+  directFeedUrl?: string;
+  rsshubRouteHint?: string;
+  evidenceTitle?: string;
+  discoveredAt?: string;
+}
+
+export interface IntelligenceSourceCandidate extends IntelligenceSourceCandidateInput {
+  id: string;
+  host: string;
+  status: 'candidate' | 'approved' | 'rejected';
+  sightings: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  evidenceTitles: string[];
+}
+
+export interface SubscriberRecord {
+  email: string;
+  topics: import('./newsletter').NewsletterTopic[];
+  status: 'pending' | 'active';
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}

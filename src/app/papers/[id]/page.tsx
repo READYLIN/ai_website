@@ -1,20 +1,19 @@
-import { fetchAllPapers } from '@/lib/paper-fetcher';
+import { fetchPaperById } from '@/lib/paper-fetcher';
 import { serialize } from '@/lib/serialize';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export async function generateMetadata({
   params,
 }: {
   params: { id: string };
 }): Promise<Metadata> {
-  const papers = serialize(await fetchAllPapers());
-  const paper = papers.find((p) => p.id === params.id);
-
-  if (!paper) return { title: '论文未找到' };
+  const found = await fetchPaperById(params.id);
+  if (!found) return { title: '论文未找到' };
+  const paper = serialize(found);
 
   return {
     title: `${paper.title} — AI 论文中心`,
@@ -33,12 +32,11 @@ export default async function PaperDetailPage({
 }: {
   params: { id: string };
 }) {
-  const papers = serialize(await fetchAllPapers());
-  const paper = papers.find((p) => p.id === params.id);
-
-  if (!paper) {
+  const found = await fetchPaperById(params.id);
+  if (!found) {
     notFound();
   }
+  const paper = serialize(found);
 
   return (
     <div className="container-site max-w-3xl py-8 sm:py-12">

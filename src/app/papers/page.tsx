@@ -1,22 +1,14 @@
 import { fetchAllPapers } from '@/lib/paper-fetcher';
 import { serialize } from '@/lib/serialize';
-import PaperList from '@/components/PaperList';
-import PaperCategoryNav from '@/components/PaperCategoryNav';
+import PaperExplorer from '@/components/PaperExplorer';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
-export default async function PapersPage({
-  searchParams,
-}: {
-  searchParams: { category?: string };
-}) {
-  const allPapers = serialize(await fetchAllPapers());
-  const active = searchParams.category;
-  const papers = active
-    ? allPapers.filter((p) =>
-        p.categories.some((c) => c.toLowerCase() === active.toLowerCase())
-      )
-    : allPapers;
+export default async function PapersPage() {
+  const allPapers = serialize(await fetchAllPapers()).map((paper) => ({
+    ...paper,
+    abstract: paper.abstract.slice(0, 700),
+  }));
 
   return (
     <div className="container-site py-8 sm:py-12">
@@ -34,13 +26,7 @@ export default async function PapersPage({
         <p className="mt-5 font-mono text-xs text-light-muted dark:text-dark-muted">当前索引 {allPapers.length} 篇论文</p>
       </section>
 
-      <section className="mb-8">
-        <PaperCategoryNav active={active} papers={allPapers} />
-      </section>
-
-      <section className="mb-16">
-        <PaperList papers={papers} />
-      </section>
+      <PaperExplorer papers={allPapers} />
     </div>
   );
 }

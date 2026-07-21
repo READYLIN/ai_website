@@ -1,25 +1,15 @@
 import { fetchPEIntel, getPEGroups, getPEDimensions } from '@/lib/pe-intel';
 import { serialize } from '@/lib/serialize';
-import GroupedIntelList from '@/components/GroupedIntelList';
+import IntelligenceExplorer from '@/components/IntelligenceExplorer';
+import NewsletterCTA from '@/components/NewsletterCTA';
+import { PRIVATE_EQUITY_COMPANY_COUNT } from '@/lib/private-equity-companies';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
-interface PEPageProps {
-  searchParams: { group?: string; dimension?: string };
-}
-
-export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
+export default async function PrivateEquityPage() {
   const allArticles = serialize(await fetchPEIntel());
-  const groups = getPEGroups();
-  const dimensions = getPEDimensions();
-  const activeGroup = searchParams.group || '';
-  const activeDim = searchParams.dimension || '';
-
-  const filtered = allArticles.filter((a) => {
-    if (activeGroup && a.companyGroup !== activeGroup) return false;
-    if (activeDim && a.dimension !== activeDim) return false;
-    return true;
-  });
+  const groups = getPEGroups(allArticles);
+  const dimensions = getPEDimensions(allArticles);
 
   const companies = new Set(allArticles.map((a) => a.company).filter(Boolean));
   const p0Count = allArticles.filter((a) => a.priority === 'P0').length;
@@ -37,7 +27,7 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
           私募股权
         </h1>
         <p className="text-light-muted dark:text-dark-muted text-lg max-w-2xl leading-relaxed">
-          追踪 435 家私募/创投管理人的募资、投资、退出、人事与合规动态，覆盖核心机构、活跃机构与观察名单。本期报告覆盖 {companies.size} 家机构。
+          追踪 {PRIVATE_EQUITY_COMPANY_COUNT} 家投中网榜单投资机构的募资、投资、融资、并购与退出动态。本期报告覆盖 {companies.size} 家机构。
         </p>
 
         {/* Stats row */}
@@ -65,61 +55,16 @@ export default async function PrivateEquityPage({ searchParams }: PEPageProps) {
         </p>
       </section>
 
-      {/* Filters */}
-      <section className="mb-8 space-y-4">
-        {/* Group filter */}
-        {groups.length > 1 && (
-          <div className="flex flex-wrap gap-2">
-            <a
-              href={activeDim ? `/private-equity?dimension=${encodeURIComponent(activeDim)}` : '/private-equity'}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !activeGroup
-                  ? 'bg-accent text-white'
-                  : 'bg-light-border/40 dark:bg-dark-border/40 text-light-text dark:text-dark-text hover:bg-light-border/60 dark:hover:bg-dark-border/60'
-              }`}
-            >
-              全部
-            </a>
-            {groups.map((g) => (
-              <a
-                key={g}
-                href={`/private-equity?group=${encodeURIComponent(g)}${activeDim ? `&dimension=${encodeURIComponent(activeDim)}` : ''}`}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeGroup === g
-                    ? 'bg-accent text-white'
-                    : 'bg-light-border/40 dark:bg-dark-border/40 text-light-text dark:text-dark-text hover:bg-light-border/60 dark:hover:bg-dark-border/60'
-                }`}
-              >
-                {g}
-              </a>
-            ))}
-          </div>
-        )}
+      <IntelligenceExplorer
+        articles={allArticles}
+        groups={groups}
+        dimensions={dimensions}
+        linkPrefix="/private-equity/"
+        priorityCompanies={['德同资本']}
+        otherLast
+      />
 
-        {/* Dimension filter */}
-        {dimensions.length > 1 && (
-          <div className="flex flex-wrap gap-2">
-            {dimensions.map((d) => (
-              <a
-                key={d}
-                href={`/private-equity?dimension=${encodeURIComponent(d)}${activeGroup ? `&group=${encodeURIComponent(activeGroup)}` : ''}`}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeDim === d
-                    ? 'bg-accent/80 text-white'
-                    : 'bg-light-border/30 dark:bg-dark-border/30 text-light-muted dark:text-dark-muted hover:bg-light-border/50 dark:hover:bg-dark-border/50'
-                }`}
-              >
-                {d}
-              </a>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Paginated list */}
-      <section className="mb-16">
-        <GroupedIntelList articles={filtered} linkPrefix="/private-equity/" />
-      </section>
+      <NewsletterCTA />
     </div>
   );
 }
