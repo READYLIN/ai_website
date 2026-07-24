@@ -10,6 +10,7 @@ data/*
 .env*
 !.env.example
 tsconfig.tsbuildinfo
+scripts/.test-dist/
 .git.backup-pre-rewrite/
 .reasonix/
 .learnings/

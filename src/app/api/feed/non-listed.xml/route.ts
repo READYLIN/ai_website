@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server';
-import { getRedisClient } from '@/lib/storage';
+import { getNonListedDoubao } from '@/lib/storage';
 import { IntelArticle } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const NON_LISTED_DOUBAO_KEY = 'intelligence:non-listed-doubao';
 
 function escapeXml(input: string): string {
   return String(input ?? '')
@@ -23,10 +21,10 @@ function toRfc822(dateStr: string): string {
 }
 
 function buildRss(items: IntelArticle[], origin: string): string {
-  const channelTitle = '非上市公司情报（豆包联网搜索）';
+  const channelTitle = '非上市公司情报（AI 联网搜索）';
   const channelLink = `${origin}/api/feed/non-listed.xml`;
   const channelDesc =
-    '由 ai_web 通过豆包联网搜索抓取、并经来源链接校验的非上市公司公开情报，覆盖央媒、报业集团、广电系、出版与内容传媒等非上市主体。';
+    '由 ai_web 通过 AI 联网搜索抓取、并经来源链接校验的非上市公司公开情报，覆盖央媒、报业集团、广电系、出版与内容传媒等非上市主体。';
   const lastBuild = new Date().toUTCString();
 
   const entries = items
@@ -42,7 +40,7 @@ function buildRss(items: IntelArticle[], origin: string): string {
       const guid = escapeXml(it.id || it.url || title);
       const cats = (it.categories || [])
         .filter(Boolean)
-        .map((c) => `      <category>${escapeXml(c)}</category>`)
+        .map((c) => `      <category>${escapeXml(c === '豆包联网搜索' ? 'AI 联网搜索' : c)}</category>`)
         .join('\n');
       return `    <item>
       <title>${title}</title>
@@ -71,22 +69,10 @@ ${entries}
 }
 
 export async function GET(req: NextRequest) {
-  const redis = getRedisClient();
-  if (!redis) {
-    return new Response('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>非上市公司情报</title><description>Upstash Redis 未配置</description></channel></rss>', {
-      status: 200,
-      headers: { 'Content-Type': 'application/rss+xml; charset=utf-8' },
-    });
-  }
-
   let items: IntelArticle[] = [];
   try {
-    const hash = await redis.hgetall<Record<string, unknown>>(NON_LISTED_DOUBAO_KEY);
-    if (hash) {
-      items = Object.values(hash)
-        .map((v) => (typeof v === 'string' ? JSON.parse(v) : v) as IntelArticle)
-        .filter((it) => it && it.url);
-    }
+    const all = await getNonListedDoubao();
+    items = all.filter((it) => it && it.url);
   } catch (err) {
     console.error('[feed/non-listed] read failed:', err);
   }

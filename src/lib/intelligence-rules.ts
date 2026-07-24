@@ -395,6 +395,14 @@ function mergeDuplicate(existing: IntelArticle, candidate: IntelArticle): IntelA
   return { ...preferred, description: longerDescription };
 }
 
+/**
+ * 展示层标签归一化：把内部来源名 “豆包联网搜索” 显示为 “AI 联网搜索”。
+ * 仅影响界面文字，不改底层数据与判定逻辑（companyGroup 仍为 “豆包联网搜索”）。
+ */
+export function displayGroupLabel(group: string): string {
+  return group === '豆包联网搜索' ? 'AI 联网搜索' : group;
+}
+
 export function sanitizeIntelligenceArticle(
   article: IntelArticle,
   channel: IntelligenceChannel,

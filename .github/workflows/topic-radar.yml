@@ -1,0 +1,22 @@
+name: Topic Radar Cron
+
+on:
+  schedule:
+    # 每天北京时间 10:00 = UTC 2:00
+    - cron: '0 2 * * *'
+  workflow_dispatch: # 手动触发
+
+jobs:
+  run-topic-radar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run topic radar scan
+        run: |
+          curl -s -X POST "https://aiweb-roan.vercel.app/api/topics/run" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"forceRegenerate":false}' \
+            --max-time 280
+      - name: Report status
+        if: always()
+        run: echo "Topic Radar scheduled run finished."

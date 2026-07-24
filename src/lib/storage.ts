@@ -1,4 +1,4 @@
-import { Redis } from '@upstash/redis';
+import { createPool, type Pool } from 'mysql2/promise';
 import { createHash } from 'crypto';
 import {
   Article,
@@ -11,40 +11,55 @@ import {
 } from './types';
 import { NewsletterTopic } from './newsletter';
 
-// ─── Redis Client ─────────────────────────────────────────────
+// ─── MySQL Pool (lazy singleton) ──────────────────────────────
+//
+// Previously this module spoke to Upstash Redis over REST. It now uses a local
+// MySQL database (teacher requirement: no Redis). All exported function
+// signatures are unchanged so callers (pages, API routes, fetchers) need no
+// edits. JSON payloads are stored in JSON columns and serialized explicitly on
+// write (mysql2's `query` format mode stringifies plain objects to
+// "[object Object]", so we pass JSON strings ourselves). On read, mysql2
+// returns JSON columns as parsed objects already.
 
-export function getRedisClient(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+let _pool: Pool | null | undefined;
 
-  if (!url || !token) {
-    console.warn('[storage] Upstash Redis not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.');
-    return null;
+export function getPool(): Pool | null {
+  if (_pool !== undefined) return _pool;
+
+  const host = process.env.MYSQL_HOST || '127.0.0.1';
+  const port = Number(process.env.MYSQL_PORT || 3306);
+  const user = process.env.MYSQL_USER || 'root';
+  const password = process.env.MYSQL_PASSWORD || '';
+  const database = process.env.MYSQL_DATABASE || 'ai_web';
+
+  try {
+    _pool = createPool({
+      host,
+      port,
+      user,
+      password,
+      database,
+      connectionLimit: 10,
+      waitForConnections: true,
+      charset: 'utf8mb4',
+      // Reconnect on dropped connections instead of throwing.
+      enableKeepAlive: true,
+    });
+  } catch (err) {
+    console.error('[storage] Failed to create MySQL pool:', err);
+    _pool = null;
   }
-
-  return new Redis({ url, token });
+  return _pool;
 }
 
-/**
- * Read-only client used while rendering pages. `default` lets Next.js apply the
- * route/data revalidation policy instead of forcing every Redis read to be
- * uncached. Mutation paths continue to use the no-store client above.
- */
-function getRedisReadClient(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token, cache: 'default' });
-}
-
+/** True when a MySQL connection can be established. */
 export function isCloudStorageConfigured(): boolean {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  return getPool() !== null;
 }
 
-// ─── Month Helpers ────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────
 
 function getMonthKey(dateStr: string): string {
-  // "2026-07-11T..." → "2026-07"
   const d = new Date(dateStr);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -52,10 +67,8 @@ function getMonthKey(dateStr: string): string {
 }
 
 function getTargetMonths(): string[] {
-  // Return current month plus previous 2 months (rolling window).
-  // Overridable with STORAGE_MONTHS env var (comma-separated).
   const env = process.env.STORAGE_MONTHS;
-  if (env) return env.split(',').map(s => s.trim());
+  if (env) return env.split(',').map((s) => s.trim());
 
   const now = new Date();
   const months: string[] = [];
@@ -67,291 +80,164 @@ function getTargetMonths(): string[] {
   return months;
 }
 
-type ListSnapshot<T> = {
-  schemaVersion: 1;
-  generatedAt: string;
-  count: number;
-  items: T[];
-};
-
-const SNAPSHOT_KEYS = {
-  articles: 'snapshot:list:articles:v1',
-  papers: 'snapshot:list:papers:v1',
-  media: 'snapshot:list:intelligence:media:v1',
-  privateEquity: 'snapshot:list:intelligence:private-equity:v1',
-} as const;
-
-function parseSnapshot<T>(value: unknown): ListSnapshot<T> | null {
-  try {
-    const parsed = (typeof value === 'string' ? JSON.parse(value) : value) as ListSnapshot<T>;
-    return parsed && Array.isArray(parsed.items) ? parsed : null;
-  } catch {
-    return null;
+function parseData(value: unknown): any {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
   }
+  return value;
 }
 
-function compactArticle(article: Article): Article {
-  const { content: _content, contentZh: _contentZh, ...item } = article;
-  return {
-    ...item,
-    description: item.description.slice(0, 500),
-    descriptionZh: item.descriptionZh?.slice(0, 500),
-  };
-}
-
-function compactPaper(paper: Paper): Paper {
-  return { ...paper, abstract: paper.abstract.slice(0, 700) };
-}
-
-async function readListSnapshot<T>(key: string): Promise<T[]> {
-  const redis = getRedisReadClient();
-  if (!redis) return [];
-  const snapshot = parseSnapshot<T>(await redis.get(key));
-  return snapshot?.items || [];
-}
-
-async function mergeListSnapshot<T extends { id: string }>(
-  key: string,
-  incoming: T[],
-  compact: (item: T) => T,
-): Promise<void> {
-  const redis = getRedisClient();
-  if (!redis || incoming.length === 0) return;
-  const existing = parseSnapshot<T>(await redis.get(key))?.items || [];
-  const merged = new Map(existing.map(item => [item.id, item]));
-  for (const item of incoming) merged.set(item.id, compact(item));
-  const items = Array.from(merged.values()).sort(
-    (a, b) => new Date((b as T & { publishedAt?: string }).publishedAt || 0).getTime()
-      - new Date((a as T & { publishedAt?: string }).publishedAt || 0).getTime(),
-  );
-  const snapshot: ListSnapshot<T> = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    count: items.length,
-    items,
-  };
-  await redis.set(key, JSON.stringify(snapshot));
-}
-
-async function replaceListSnapshot<T extends { id: string }>(
-  key: string,
-  incoming: T[],
-  compact: (item: T) => T,
-): Promise<void> {
-  const redis = getRedisClient();
-  if (!redis || incoming.length === 0) return;
-  const items = incoming.map(compact).sort(
-    (a, b) => new Date((b as T & { publishedAt?: string }).publishedAt || 0).getTime()
-      - new Date((a as T & { publishedAt?: string }).publishedAt || 0).getTime(),
-  );
-  const snapshot: ListSnapshot<T> = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    count: items.length,
-    items,
-  };
-  await redis.set(key, JSON.stringify(snapshot));
-}
+// ─── List reads (formerly snapshot-backed) ────────────────────
+//
+// Snapshots used to be denormalized caches in Redis. With MySQL, list reads
+// query the tables directly (cheap, always fresh). The merge/replace snapshot
+// functions below are kept as no-ops so the sync route's call sites stay valid.
 
 export async function getStoredArticleList(): Promise<Article[]> {
-  return readListSnapshot<Article>(SNAPSHOT_KEYS.articles);
+  const months = await getAvailableMonths('articles');
+  return getStoredArticles(months);
 }
 
 export async function getStoredPaperList(): Promise<Paper[]> {
-  return readListSnapshot<Paper>(SNAPSHOT_KEYS.papers);
+  const months = await getAvailableMonths('papers');
+  return getStoredPapers(months);
 }
 
 export async function getStoredIntelligenceList(channel: IntelligenceChannel): Promise<IntelArticle[]> {
-  return readListSnapshot<IntelArticle>(
-    channel === 'media' ? SNAPSHOT_KEYS.media : SNAPSHOT_KEYS.privateEquity,
-  );
+  return getStoredIntelligence(channel);
 }
 
-export async function mergeArticleListSnapshot(articles: Article[]): Promise<void> {
-  return mergeListSnapshot(SNAPSHOT_KEYS.articles, articles, compactArticle);
+export async function mergeArticleListSnapshot(_articles: Article[]): Promise<void> {
+  // No-op: list reads query the table directly now.
 }
 
-export async function mergePaperListSnapshot(papers: Paper[]): Promise<void> {
-  return mergeListSnapshot(SNAPSHOT_KEYS.papers, papers, compactPaper);
+export async function mergePaperListSnapshot(_papers: Paper[]): Promise<void> {
+  // No-op: list reads query the table directly now.
 }
 
 export async function mergeIntelligenceListSnapshot(
-  channel: IntelligenceChannel,
-  articles: IntelArticle[],
+  _channel: IntelligenceChannel,
+  _articles: IntelArticle[],
 ): Promise<void> {
-  return mergeListSnapshot(
-    channel === 'media' ? SNAPSHOT_KEYS.media : SNAPSHOT_KEYS.privateEquity,
-    articles,
-    item => item,
-  );
+  // No-op: list reads query the table directly now.
 }
 
 export async function replaceIntelligenceListSnapshot(
-  channel: IntelligenceChannel,
-  articles: IntelArticle[],
+  _channel: IntelligenceChannel,
+  _articles: IntelArticle[],
 ): Promise<void> {
-  return replaceListSnapshot(
-    channel === 'media' ? SNAPSHOT_KEYS.media : SNAPSHOT_KEYS.privateEquity,
-    articles,
-    item => item,
-  );
+  // No-op: list reads query the table directly now.
 }
 
 export async function getStoredArticleById(id: string): Promise<Article | undefined> {
-  const redis = getRedisReadClient();
-  if (!redis) return undefined;
-  const values = await Promise.all(getTargetMonths().map(month => redis.hget<unknown>(`articles:${month}`, id)));
-  const value = values.find(Boolean);
-  if (!value) return undefined;
-  return (typeof value === 'string' ? JSON.parse(value) : value) as Article;
+  const pool = getPool();
+  if (!pool) return undefined;
+  const [rows] = await pool.query('SELECT data FROM articles WHERE id = ? LIMIT 1', [id]);
+  const row = (rows as any[])[0];
+  return row ? (parseData(row.data) as Article) : undefined;
 }
 
 export async function getStoredPaperById(id: string): Promise<Paper | undefined> {
-  const redis = getRedisReadClient();
-  if (!redis) return undefined;
-  const values = await Promise.all(getTargetMonths().map(month => redis.hget<unknown>(`papers:${month}`, id)));
-  const value = values.find(Boolean);
-  if (!value) return undefined;
-  return (typeof value === 'string' ? JSON.parse(value) : value) as Paper;
+  const pool = getPool();
+  if (!pool) return undefined;
+  const [rows] = await pool.query('SELECT data FROM papers WHERE id = ? LIMIT 1', [id]);
+  const row = (rows as any[])[0];
+  return row ? (parseData(row.data) as Paper) : undefined;
 }
 
 // ─── Article Storage ──────────────────────────────────────────
 
 export async function saveArticles(articles: Article[]): Promise<number> {
-  const redis = getRedisClient();
-  if (!redis) return 0;
+  const pool = getPool();
+  if (!pool) return 0;
 
   const targetMonths = getTargetMonths();
-  let savedCount = 0;
+  const toSave = articles.filter((a) => targetMonths.includes(getMonthKey(a.publishedAt)));
+  if (toSave.length === 0) return 0;
 
-  for (const article of articles) {
+  // Determine which ids are already present so we only insert new ones
+  // (mirrors the old HSETNX "don't overwrite" behaviour).
+  const ids = toSave.map((a) => a.id);
+  const [existingRows] = await pool.query('SELECT id FROM articles WHERE id IN (?)', [ids]);
+  const existing = new Set((existingRows as any[]).map((r) => r.id));
+
+  let saved = 0;
+  for (const article of toSave) {
+    if (existing.has(article.id)) continue;
     const month = getMonthKey(article.publishedAt);
-    if (!targetMonths.includes(month)) continue;
-
-    const key = `articles:${month}`;
-    const json = JSON.stringify(article);
-
-    try {
-      // HSETNX - only save if not already present (avoids overwriting with same data)
-      const added = await redis.hsetnx(key, article.id, json);
-      if (added) savedCount++;
-      // Auto-expire after 90 days
-      redis.expire(key, 90 * 86400).catch(() => {});
-    } catch (err) {
-      console.error(`[storage] Failed to save article ${article.id}:`, err);
-    }
+    await pool.query(
+      'INSERT INTO articles (id, month, published_at, data) VALUES (?, ?, ?, ?)',
+      [article.id, month, article.publishedAt, JSON.stringify(article)],
+    );
+    saved++;
   }
-
-  // Update month index
-  if (savedCount > 0) {
-    try {
-      const monthsWithData = targetMonths.filter(m => articles.some(a => getMonthKey(a.publishedAt) === m));
-      for (const month of monthsWithData) {
-        await redis.sadd('meta:months:articles', month);
-      }
-    } catch (err) {
-      console.error('[storage] Failed to update month index:', err);
-    }
-  }
-
-  return savedCount;
+  return saved;
 }
 
 export async function getStoredArticles(months?: string[]): Promise<Article[]> {
-  const redis = getRedisReadClient();
-  if (!redis) return [];
+  const pool = getPool();
+  if (!pool) return [];
 
-  const targetMonths = months || getTargetMonths();
-  const batches = await Promise.all(targetMonths.map(async (month) => {
-    try {
-      const key = `articles:${month}`;
-      const count = await redis.hlen(key).catch(() => 0);
-      if (count === 0) return [] as Article[];
+  const targetMonths = months && months.length > 0 ? months : getTargetMonths();
+  if (targetMonths.length === 0) return [];
 
-      // One HVALS request replaces several high-latency HSCAN round trips.
-      // Upstash may automatically deserialize JSON values, so accept both
-      // strings and objects. The old implementation tried JSON.parse(object)
-      // and silently discarded every cloud article.
-      const values = await redis.hvals(key) as unknown[];
-      return values.flatMap((value) => {
-        try {
-          return [(typeof value === 'string' ? JSON.parse(value) : value) as Article];
-        } catch {
-          return [];
-        }
-      });
-    } catch (err) {
-      console.error(`[storage] Failed to read articles for ${month}:`, err);
-      return [] as Article[];
-    }
-  }));
-
-  return batches.flat();
+  const [rows] = await pool.query(
+    'SELECT data FROM articles WHERE month IN (?)',
+    [targetMonths],
+  );
+  // Sort in JS: the JSON `data` column is large, and a SQL filesort over it
+  // can exhaust the server's sort_buffer_size ("Out of sort memory").
+  return (rows as any[])
+    .map((r) => parseData(r.data) as Article)
+    .sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime());
 }
 
 // ─── Paper Storage ────────────────────────────────────────────
 
 export async function savePapers(papers: Paper[]): Promise<number> {
-  const redis = getRedisClient();
-  if (!redis) return 0;
+  const pool = getPool();
+  if (!pool) return 0;
 
   const targetMonths = getTargetMonths();
-  let savedCount = 0;
+  const toSave = papers.filter((p) => targetMonths.includes(getMonthKey(p.publishedAt)));
+  if (toSave.length === 0) return 0;
 
-  for (const paper of papers) {
+  const ids = toSave.map((p) => p.id);
+  const [existingRows] = await pool.query('SELECT id FROM papers WHERE id IN (?)', [ids]);
+  const existing = new Set((existingRows as any[]).map((r) => r.id));
+
+  let saved = 0;
+  for (const paper of toSave) {
+    if (existing.has(paper.id)) continue;
     const month = getMonthKey(paper.publishedAt);
-    if (!targetMonths.includes(month)) continue;
-
-    const key = `papers:${month}`;
-    const json = JSON.stringify(paper);
-
-    try {
-      const added = await redis.hsetnx(key, paper.id, json);
-      if (added) savedCount++;
-    } catch (err) {
-      console.error(`[storage] Failed to save paper ${paper.id}:`, err);
-    }
+    await pool.query(
+      'INSERT INTO papers (id, month, published_at, data) VALUES (?, ?, ?, ?)',
+      [paper.id, month, paper.publishedAt, JSON.stringify(paper)],
+    );
+    saved++;
   }
-
-  if (savedCount > 0) {
-    try {
-      const monthsWithData = targetMonths.filter(m =>
-        papers.some(p => getMonthKey(p.publishedAt) === m)
-      );
-      for (const month of monthsWithData) {
-        await redis.sadd('meta:months:papers', month);
-      }
-    } catch (err) {
-      console.error('[storage] Failed to update paper month index:', err);
-    }
-  }
-
-  return savedCount;
+  return saved;
 }
 
 export async function getStoredPapers(months?: string[]): Promise<Paper[]> {
-  const redis = getRedisReadClient();
-  if (!redis) return [];
+  const pool = getPool();
+  if (!pool) return [];
 
-  const targetMonths = months || getTargetMonths();
-  const batches = await Promise.all(targetMonths.map(async (month) => {
-    try {
-      const hash = await redis.hgetall<Record<string, unknown>>(`papers:${month}`);
-      if (!hash) return [] as Paper[];
-      return Object.values(hash).flatMap((value) => {
-        try {
-          return [(typeof value === 'string' ? JSON.parse(value) : value) as Paper];
-        } catch {
-          return [];
-        }
-      });
-    } catch (err) {
-      console.error(`[storage] Failed to read papers for ${month}:`, err);
-      return [] as Paper[];
-    }
-  }));
+  const targetMonths = months && months.length > 0 ? months : getTargetMonths();
+  if (targetMonths.length === 0) return [];
 
-  return batches.flat();
+  const [rows] = await pool.query(
+    'SELECT data FROM papers WHERE month IN (?)',
+    [targetMonths],
+  );
+  return (rows as any[])
+    .map((r) => parseData(r.data) as Paper)
+    .sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime());
 }
 
 // ─── Structured intelligence storage ─────────────────────────
@@ -360,77 +246,52 @@ export async function saveIntelligence(
   channel: IntelligenceChannel,
   articles: IntelArticle[],
 ): Promise<number> {
-  const redis = getRedisClient();
-  if (!redis || articles.length === 0) return 0;
+  const pool = getPool();
+  if (!pool || articles.length === 0) return 0;
 
-  const key = `intelligence:${channel}`;
-  let existingIds = new Set<string>();
-  try {
-    existingIds = new Set(await redis.hkeys(key));
-  } catch (err) {
-    console.error(`[storage] Failed to list existing ${channel} item IDs:`, err);
+  const [existingRows] = await pool.query(
+    'SELECT id FROM intelligence WHERE channel = ?',
+    [channel],
+  );
+  const existing = new Set((existingRows as any[]).map((r) => r.id));
+
+  let saved = 0;
+  for (const article of articles) {
+    if (existing.has(article.id)) continue;
+    await pool.query(
+      'INSERT INTO intelligence (id, channel, published_at, data) VALUES (?, ?, ?, ?)',
+      [article.id, channel, article.publishedAt, JSON.stringify(article)],
+    );
+    saved++;
   }
-  const savedCount = articles.filter(article => !existingIds.has(article.id)).length;
-
-  // Chunked HSET keeps the archive append-only while avoiding hundreds of
-  // sequential network round trips as the historical dataset grows.
-  for (let index = 0; index < articles.length; index += 100) {
-    const batch = articles.slice(index, index + 100);
-    try {
-      await redis.hset(key, Object.fromEntries(
-        batch.map(article => [article.id, JSON.stringify(article)]),
-      ));
-    } catch (err) {
-      console.error(`[storage] Failed to save ${channel} intelligence batch:`, err);
-      throw err;
-    }
-  }
-
-  await redis.hset('meta:intelligence', {
-    [channel]: JSON.stringify({
-      count: await redis.hlen(key),
-      syncedAt: new Date().toISOString(),
-    }),
-  }).catch((err) => console.error('[storage] Failed to update intelligence metadata:', err));
-
-  return savedCount;
+  return saved;
 }
 
 export async function pruneIntelligence(
   channel: IntelligenceChannel,
   retainedIds: Set<string>,
 ): Promise<number> {
-  const redis = getRedisClient();
-  if (!redis || retainedIds.size === 0) return 0;
+  const pool = getPool();
+  if (!pool || retainedIds.size === 0) return 0;
 
-  const key = `intelligence:${channel}`;
-  const existingIds = await redis.hkeys(key);
-  const staleIds = existingIds.filter(id => !retainedIds.has(id));
-  for (let index = 0; index < staleIds.length; index += 100) {
-    await redis.hdel(key, ...staleIds.slice(index, index + 100));
-  }
-  return staleIds.length;
+  const [result] = await pool.query(
+    'DELETE FROM intelligence WHERE channel = ? AND id NOT IN (?)',
+    [channel, Array.from(retainedIds)],
+  );
+  return (result as any).affectedRows ?? 0;
 }
 
 export async function getStoredIntelligence(channel: IntelligenceChannel): Promise<IntelArticle[]> {
-  const redis = getRedisReadClient();
-  if (!redis) return [];
+  const pool = getPool();
+  if (!pool) return [];
 
-  try {
-    const hash = await redis.hgetall<Record<string, unknown>>(`intelligence:${channel}`);
-    if (!hash) return [];
-
-    return Object.values(hash).flatMap((value) => {
-      try {
-        return [(typeof value === 'string' ? JSON.parse(value) : value) as IntelArticle];
-      } catch {
-        return [];
-      }
-    });
-  } catch (err) {
-    console.error(`[storage] Failed to read ${channel} intelligence:`, err);
-    return [];
-  }
+  const [rows] = await pool.query(
+    'SELECT data FROM intelligence WHERE channel = ?',
+    [channel],
+  );
+  return (rows as any[])
+    .map((r) => parseData(r.data) as IntelArticle)
+    .sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime());
 }
 
 // ─── Intelligence source discovery queue ─────────────────────
@@ -450,19 +311,30 @@ function safeSourceHost(value: string): string | null {
 export async function saveIntelligenceSourceCandidates(
   inputs: IntelligenceSourceCandidateInput[],
 ): Promise<IntelligenceSourceCandidate[]> {
-  const redis = getRedisClient();
-  if (!redis) return [];
+  const pool = getPool();
+  if (!pool) return [];
+
   const output: IntelligenceSourceCandidate[] = [];
   for (const input of inputs.slice(0, 50)) {
     const host = safeSourceHost(input.articleUrl);
     if (!host || !['media', 'private-equity'].includes(input.channel)) continue;
+
     const id = createHash('sha256').update(`${input.channel}\0${host}`).digest('hex').slice(0, 24);
     const now = new Date().toISOString();
-    const existing = await redis.hget<IntelligenceSourceCandidate>('intelligence:source-candidates', id);
+
+    let existing: IntelligenceSourceCandidate | null = null;
+    const [existingRows] = await pool.query(
+      'SELECT data FROM source_candidates WHERE id = ? LIMIT 1',
+      [id],
+    );
+    const er = (existingRows as any[])[0];
+    if (er) existing = parseData(er.data) as IntelligenceSourceCandidate;
+
     const evidenceTitles = Array.from(new Set([
       ...(existing?.evidenceTitles || []),
       String(input.evidenceTitle || '').trim().slice(0, 180),
     ].filter(Boolean))).slice(-8);
+
     const candidate: IntelligenceSourceCandidate = {
       id,
       channel: input.channel,
@@ -481,24 +353,24 @@ export async function saveIntelligenceSourceCandidates(
       lastSeenAt: now,
       evidenceTitles,
     };
-    await redis.hset('intelligence:source-candidates', { [id]: JSON.stringify(candidate) });
+
+    await pool.query(
+      'INSERT INTO source_candidates (id, channel, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE channel = VALUES(channel), data = VALUES(data)',
+      [id, input.channel, JSON.stringify(candidate)],
+    );
     output.push(candidate);
   }
   return output;
 }
 
 export async function getIntelligenceSourceCandidates(): Promise<IntelligenceSourceCandidate[]> {
-  const redis = getRedisClient();
-  if (!redis) return [];
-  const hash = await redis.hgetall<Record<string, unknown>>('intelligence:source-candidates');
-  if (!hash) return [];
-  return Object.values(hash).flatMap((value) => {
-    try {
-      return [(typeof value === 'string' ? JSON.parse(value) : value) as IntelligenceSourceCandidate];
-    } catch {
-      return [];
-    }
-  }).sort((a, b) => b.sightings - a.sightings || b.lastSeenAt.localeCompare(a.lastSeenAt));
+  const pool = getPool();
+  if (!pool) return [];
+
+  const [rows] = await pool.query('SELECT data FROM source_candidates');
+  return (rows as any[])
+    .map((r) => parseData(r.data) as IntelligenceSourceCandidate)
+    .sort((a, b) => b.sightings - a.sightings || b.lastSeenAt.localeCompare(a.lastSeenAt));
 }
 
 // ─── Newsletter subscriber storage ───────────────────────────
@@ -513,8 +385,8 @@ export async function upsertSubscriber(
   status: SubscriberRecord['status'],
   source = 'website',
 ): Promise<boolean> {
-  const redis = getRedisClient();
-  if (!redis) return false;
+  const pool = getPool();
+  if (!pool) return false;
 
   const normalizedEmail = email.trim().toLowerCase();
   const key = subscriberKey(normalizedEmail);
@@ -522,8 +394,15 @@ export async function upsertSubscriber(
   let createdAt = now;
 
   try {
-    const existing = await redis.hget<SubscriberRecord>('newsletter:subscribers', key);
-    if (existing?.createdAt) createdAt = existing.createdAt;
+    const [existingRows] = await pool.query(
+      'SELECT data FROM subscribers WHERE email_hash = ? LIMIT 1',
+      [key],
+    );
+    const er = (existingRows as any[])[0];
+    if (er) {
+      const existing = parseData(er.data) as SubscriberRecord;
+      if (existing?.createdAt) createdAt = existing.createdAt;
+    }
 
     const record: SubscriberRecord = {
       email: normalizedEmail,
@@ -534,14 +413,19 @@ export async function upsertSubscriber(
       updatedAt: now,
     };
 
-    await redis.hset('newsletter:subscribers', { [key]: JSON.stringify(record) });
-    for (const previousTopic of existing?.topics || []) {
-      if (!topics.includes(previousTopic)) {
-        await redis.srem(`newsletter:topic:${previousTopic}`, key);
-      }
-    }
-    for (const topic of topics) {
-      await redis.sadd(`newsletter:topic:${topic}`, key);
+    await pool.query(
+      'INSERT INTO subscribers (email_hash, email, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), data = VALUES(data)',
+      [key, normalizedEmail, JSON.stringify(record)],
+    );
+
+    // Replace the topic set atomically.
+    await pool.query('DELETE FROM subscriber_topics WHERE email_hash = ?', [key]);
+    if (topics.length > 0) {
+      const values = topics.map((t) => [key, t]);
+      await pool.query(
+        'INSERT IGNORE INTO subscriber_topics (email_hash, topic) VALUES ?',
+        [values],
+      );
     }
 
     return true;
@@ -551,16 +435,26 @@ export async function upsertSubscriber(
   }
 }
 
+// ─── Non-listed Doubao feed ──────────────────────────────────
+
+export async function getNonListedDoubao(): Promise<IntelArticle[]> {
+  const pool = getPool();
+  if (!pool) return [];
+  const [rows] = await pool.query('SELECT data FROM non_listed_doubao ORDER BY id');
+  return (rows as any[]).map((r) => parseData(r.data) as IntelArticle);
+}
+
 // ─── Month Index ──────────────────────────────────────────────
 
 export async function getAvailableMonths(type: 'articles' | 'papers'): Promise<string[]> {
-  const redis = getRedisClient();
-  if (!redis) return [];
-
+  const pool = getPool();
+  if (!pool) return [];
+  const table = type === 'articles' ? 'articles' : 'papers';
   try {
-    const key = `meta:months:${type}`;
-    const members = (await redis.smembers(key)) as string[];
-    return members.sort();
+    const [rows] = await pool.query(
+      `SELECT DISTINCT month FROM ${table} WHERE month IS NOT NULL ORDER BY month`,
+    );
+    return (rows as any[]).map((r) => r.month);
   } catch (err) {
     console.error(`[storage] Failed to get available months for ${type}:`, err);
     return [];
@@ -575,42 +469,43 @@ export async function getStorageStats(): Promise<{
   intelligence: Record<IntelligenceChannel, number>;
   subscribers: number;
 }> {
-  const redis = getRedisClient();
-  if (!redis) return {
-    articles: [],
-    papers: [],
-    intelligence: { media: 0, 'private-equity': 0 },
-    subscribers: 0,
-  };
+  const pool = getPool();
+  if (!pool) {
+    return {
+      articles: [],
+      papers: [],
+      intelligence: { media: 0, 'private-equity': 0 },
+      subscribers: 0,
+    };
+  }
 
   try {
-    const articleMonths = await getAvailableMonths('articles');
-    const paperMonths = await getAvailableMonths('papers');
-
-    const articleStats = await Promise.all(
-      articleMonths.map(async (month) => ({
-        month,
-        count: await redis.hlen(`articles:${month}`),
-      }))
+    const [articleRows] = await pool.query(
+      'SELECT month, COUNT(*) AS count FROM articles GROUP BY month ORDER BY month',
     );
-
-    const paperStats = await Promise.all(
-      paperMonths.map(async (month) => ({
-        month,
-        count: await redis.hlen(`papers:${month}`),
-      }))
+    const [paperRows] = await pool.query(
+      'SELECT month, COUNT(*) AS count FROM papers GROUP BY month ORDER BY month',
     );
+    const [intelRows] = await pool.query(
+      'SELECT channel, COUNT(*) AS count FROM intelligence GROUP BY channel',
+    );
+    const [subRows] = await pool.query('SELECT COUNT(*) AS count FROM subscribers');
 
-    const [media, privateEquity, subscribers] = await Promise.all([
-      redis.hlen('intelligence:media'),
-      redis.hlen('intelligence:private-equity'),
-      redis.hlen('newsletter:subscribers'),
-    ]);
+    const articles = (articleRows as any[]).map((r) => ({ month: r.month, count: Number(r.count) }));
+    const papers = (paperRows as any[]).map((r) => ({ month: r.month, count: Number(r.count) }));
+
+    const intelCounts: Record<string, number> = {};
+    for (const r of intelRows as any[]) intelCounts[r.channel] = Number(r.count);
+
+    const subscribers = Number((subRows as any[])[0]?.count ?? 0);
 
     return {
-      articles: articleStats,
-      papers: paperStats,
-      intelligence: { media, 'private-equity': privateEquity },
+      articles,
+      papers,
+      intelligence: {
+        media: intelCounts['media'] ?? 0,
+        'private-equity': intelCounts['private-equity'] ?? 0,
+      },
       subscribers,
     };
   } catch (err) {

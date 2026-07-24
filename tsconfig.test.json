@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "outDir": "scripts/.test-dist",
+    "module": "commonjs",
+    "target": "es2019",
+    "downlevelIteration": true,
+    "moduleResolution": "node",
+    "jsx": "react",
+    "plugins": []
+  },
+  "include": [
+    "src/lib/topic-radar/**/*.ts",
+    "src/lib/llm/**/*.ts",
+    "src/lib/article-generator/**/*.ts",
+    "src/lib/market-data/**/*.ts",
+    "src/lib/storage.ts",
+    "src/lib/types.ts",
+    "src/lib/newsletter.ts",
+    "src/lib/mita-search.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

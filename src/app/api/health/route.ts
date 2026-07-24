@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { rssSources } from '@/lib/rss-sources';
 import { mediaSources } from '@/lib/media-rss-sources';
 import { peRssSources } from '@/lib/pe-rss-sources';
-import { getStorageStats } from '@/lib/storage';
+import { getStorageStats, getPool } from '@/lib/storage';
 import monitorConfig from '../../../../data/intelligence-entities.json';
 
 export const dynamic = 'force-dynamic';
@@ -13,19 +12,17 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const checks: Record<string, 'ok' | 'error' | 'warning'> = {};
 
-  // Redis check
+  // MySQL check
   try {
-    const url = process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-    if (url && token) {
-      const redis = new Redis({ url, token });
-      await redis.ping();
-      checks.redis = 'ok';
+    const pool = getPool();
+    if (pool) {
+      await pool.query('SELECT 1');
+      checks.mysql = 'ok';
     } else {
-      checks.redis = 'warning';
+      checks.mysql = 'warning';
     }
   } catch {
-    checks.redis = 'error';
+    checks.mysql = 'error';
   }
 
   // Buttondown check
